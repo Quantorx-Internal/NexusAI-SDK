@@ -12,10 +12,12 @@
     "prepare": "expo-module prepare",
     "prepublishOnly": "expo-module prepublishOnly",
     "expo-module": "expo-module",
+    "start": "npm --prefix example run start --",
     "open:ios": "xed example/ios",
     "open:android": "open -a \"Android Studio\" example/android",
-    "android": "expo run:android",
-    "ios": "expo run:ios"
+    "android": "npm --prefix example run android --",
+    "ios": "npm --prefix example run ios --",
+    "web": "npm --prefix example run web --"
   },
   "keywords": [
     "react-native",

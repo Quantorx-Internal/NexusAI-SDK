@@ -110,6 +110,14 @@ export const ENV = {
 
 ## Running the App
 
+From the repository root:
+
+```bash
+npm start
+```
+
+Or from the example app directory:
+
 ```bash
 cd example
 npm start
@@ -170,7 +178,7 @@ export default function App() {
 ## Troubleshooting
 
 ```bash
-npx expo start -c
+npm start -- --clear
 ```
 
 ---

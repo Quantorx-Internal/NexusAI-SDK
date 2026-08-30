@@ -19,7 +19,9 @@ config.resolver.nodeModulesPaths = [
 ];
 
 config.resolver.extraNodeModules = {
-  'ai-assistant': '..',
+  // Resolve the local SDK source during development. Pointing at the package
+  // root makes Metro follow package.json's publish-only build/index.js entry.
+  'ai-assistant': path.resolve(__dirname, '../src'),
 };
 
 config.watchFolders = [path.resolve(__dirname, '..')];
