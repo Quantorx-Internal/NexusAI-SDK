@@ -1,211 +1,146 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Receipt, Building2 } from 'lucide-react-native';
-import { Card } from '../../ui/Card';
+import { View, Text, StyleSheet } from 'react-native';
+import { Card, DetailRow, ActionRow, StatusPill, IconBox, iconOn } from '../../ui';
+import { color, layout, radius, size, text, iconStroke } from '../../../theme/tokens';
+import { formatCurrency, formatDate } from '../../../lib/utils';
 import { BillPaymentPreview } from '../../../types';
-import { formatCurrency } from '../../../lib/utils';
+import { billVisual } from './billVisuals';
+
+/**
+ * Family B · BillPaymentPreview.
+ *
+ * The amount is the hero; the provider block carries the bill's type icon and
+ * the due-date line, which turns danger when overdue. The due date lives with
+ * the provider rather than in the terms because it is a fact about the bill,
+ * not a term of the payment.
+ */
 
 interface BillPaymentPreviewBlockProps {
     preview: BillPaymentPreview;
+    locale?: 'en' | 'ar';
     onConfirm?: () => void;
     onCancel?: () => void;
-    locale?: 'en' | 'ar';
+    confirmedLabel?: string;
+    working?: boolean;
 }
 
 export function BillPaymentPreviewBlock({
     preview,
+    locale = 'en',
     onConfirm,
     onCancel,
-    locale = 'en',
+    confirmedLabel,
+    working,
 }: BillPaymentPreviewBlockProps) {
-    const formatDate = (dateString: string) => {
-        const date = new Date(dateString);
-        return date.toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-        });
-    };
+    const isAr = locale === 'ar';
 
     const t = {
-        title: locale === 'ar' ? 'معاينة دفع الفاتورة' : 'Bill Payment Preview',
-        pending: locale === 'ar' ? 'قيد الانتظار' : 'Pending',
-        provider: locale === 'ar' ? 'المزود' : 'Provider',
-        fromAccount: locale === 'ar' ? 'من الحساب' : 'From Account',
-        amount: locale === 'ar' ? 'المبلغ' : 'Amount',
-        dueDate: locale === 'ar' ? 'تاريخ الاستحقاق' : 'Due Date',
-        cancel: locale === 'ar' ? 'إلغاء' : 'Cancel',
-        confirm: locale === 'ar' ? 'تأكيد الدفع' : 'Confirm Payment',
+        title: isAr ? 'مراجعة الدفع' : 'Review payment',
+        awaiting: isAr ? 'بانتظار التأكيد' : 'Awaiting confirmation',
+        confirmed: isAr ? 'تم التأكيد' : 'Confirmed',
+        amount: isAr ? 'المبلغ' : 'Amount',
+        from: isAr ? 'من' : 'From',
+        due: isAr ? 'تستحق في' : 'Due',
+        wasDue: isAr ? 'كانت مستحقة في' : 'was due',
+        overdue: isAr ? 'متأخرة' : 'Overdue',
+        confirm: isAr ? 'تأكيد الدفع' : 'Confirm payment',
+        cancel: isAr ? 'إلغاء' : 'Cancel',
     };
 
+    const overdue =
+        preview.status === 'overdue' ||
+        (preview.dueDate ? new Date(preview.dueDate) < new Date() : false);
+
+    const { Icon, tone } = billVisual(preview.billType);
+    const dueTone = overdue ? color.danger.fg : color.text.tertiary;
+
+    const providerName =
+        preview.providerName || (preview as any).billName || preview.billId;
+    // A confirmed card stops asking for a decision: neutral border, success pill.
+    const done = Boolean(confirmedLabel);
+
     return (
-        <Card variant="gradient" style={styles.container}>
+        <Card variant={done ? 'info' : 'decision'}>
             <View style={styles.header}>
-                <Text style={styles.title}>{t.title}</Text>
-                <View style={styles.pendingBadge}>
-                    <Text style={styles.pendingText}>{t.pending}</Text>
-                </View>
+                <Text style={text('cardTitle')} numberOfLines={1}>
+                    {t.title}
+                </Text>
+                <StatusPill
+                    label={done ? t.confirmed : t.awaiting}
+                    tone={done ? 'success' : 'brandTint'}
+                    dot={!done}
+                />
             </View>
 
-            <View style={styles.infoSection}>
-                <View style={styles.infoRow}>
-                    <View style={styles.iconContainer}>
-                        <Receipt size={20} color="#fff" />
-                    </View>
-                    <View style={styles.infoDetails}>
-                        <Text style={styles.infoLabel}>{t.provider}</Text>
-                        <Text style={styles.infoValue}>
-                            {preview.providerName || (preview as any).billName || preview.billId}
+            <View style={styles.hero}>
+                <Text style={text('caption')}>{t.amount}</Text>
+                <Text style={[text('hero'), styles.tabular]} numberOfLines={1} adjustsFontSizeToFit>
+                    {formatCurrency(preview.amount, 'SAR', locale)}
+                </Text>
+            </View>
+
+            <View style={styles.object}>
+                <IconBox box={size.iconBox.md} tone={overdue ? 'danger' : tone}>
+                    <Icon
+                        size={size.icon.md}
+                        color={iconOn(overdue ? 'danger' : tone)}
+                        strokeWidth={iconStroke}
+                    />
+                </IconBox>
+                <View style={styles.objectText}>
+                    <Text style={text('rowValue')} numberOfLines={1}>
+                        {providerName}
+                    </Text>
+                    {preview.dueDate ? (
+                        <Text style={text('caption', { color: dueTone })} numberOfLines={1}>
+                            {overdue
+                                ? `${t.overdue} · ${t.wasDue} ${formatDate(preview.dueDate, locale)}`
+                                : `${t.due} ${formatDate(preview.dueDate, locale)}`}
                         </Text>
-                    </View>
-                </View>
-
-                {(preview.fromAccountName || preview.fromAccountId) && (
-                    <View style={styles.infoRow}>
-                        <View style={styles.iconContainer}>
-                            <Building2 size={20} color="#fff" />
-                        </View>
-                        <View style={styles.infoDetails}>
-                            <Text style={styles.infoLabel}>{t.fromAccount}</Text>
-                            <Text style={styles.infoValue}>
-                                {preview.fromAccountName || preview.fromAccountId}
-                            </Text>
-                        </View>
-                    </View>
-                )}
-            </View>
-
-            <View style={styles.detailsSection}>
-                <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>{t.amount}</Text>
-                    <Text style={styles.detailValue}>{formatCurrency(preview.amount, 'SAR', locale)}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>{t.dueDate}</Text>
-                    <Text style={styles.detailValue}>{formatDate(preview.dueDate)}</Text>
+                    ) : null}
                 </View>
             </View>
 
-            {(onConfirm || onCancel) && (
-                <View style={styles.actions}>
-                    {onCancel && (
-                        <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-                            <Text style={styles.cancelButtonText}>{t.cancel}</Text>
-                        </TouchableOpacity>
-                    )}
-                    {onConfirm && (
-                        <TouchableOpacity style={styles.confirmButton} onPress={onConfirm}>
-                            <Text style={styles.confirmButtonText}>{t.confirm}</Text>
-                        </TouchableOpacity>
-                    )}
-                </View>
-            )}
+            <View style={styles.terms}>
+                <DetailRow
+                    label={t.from}
+                    value={preview.fromAccountName || preview.fromAccountId || null}
+                />
+            </View>
+
+            <ActionRow
+                primaryLabel={onConfirm ? t.confirm : undefined}
+                onPrimary={onConfirm}
+                ghostLabel={onCancel ? t.cancel : undefined}
+                onGhost={onCancel}
+                working={working}
+                confirmedLabel={confirmedLabel}
+            />
         </Card>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        padding: 20,
-        marginVertical: 8,
-    },
     header: {
         flexDirection: 'row',
+        alignItems: 'center',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    title: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: '#fff',
-    },
-    pendingBadge: {
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 8,
-    },
-    pendingText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: '500',
-    },
-    infoSection: {
-        gap: 12,
-        marginBottom: 20,
-    },
-    infoRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        padding: 12,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        borderRadius: 12,
-    },
-    iconContainer: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    infoDetails: {
-        flex: 1,
-    },
-    infoLabel: {
-        fontSize: 12,
-        color: 'rgba(255,255,255,0.7)',
-    },
-    infoValue: {
-        fontSize: 14,
-        fontWeight: '500',
-        color: '#fff',
-    },
-    detailsSection: {
         gap: 8,
-        marginBottom: 20,
+        marginBottom: layout.sectionGap,
     },
-    detailRow: {
+    hero: { marginBottom: layout.sectionGap },
+    tabular: { fontVariant: ['tabular-nums'] },
+    object: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-    },
-    detailLabel: {
-        fontSize: 14,
-        color: 'rgba(255,255,255,0.8)',
-    },
-    detailValue: {
-        fontSize: 14,
-        fontWeight: '500',
-        color: 'rgba(255,255,255,0.8)',
-    },
-    actions: {
-        flexDirection: 'row',
-        gap: 8,
-    },
-    cancelButton: {
-        flex: 1,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        paddingVertical: 12,
-        borderRadius: 8,
         alignItems: 'center',
+        gap: layout.rowGap,
+        backgroundColor: color.surface2,
+        borderRadius: radius.inner,
+        padding: layout.rowGap,
+        marginBottom: layout.sectionGap,
     },
-    cancelButtonText: {
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: '500',
-    },
-    confirmButton: {
-        flex: 1,
-        backgroundColor: '#fff',
-        paddingVertical: 12,
-        borderRadius: 8,
-        alignItems: 'center',
-    },
-    confirmButtonText: {
-        color: '#4F008D',
-        fontSize: 14,
-        fontWeight: '600',
-    },
+    objectText: { flex: 1 },
+    terms: { gap: layout.rowGap, marginBottom: layout.sectionGap },
 });
+
+export default BillPaymentPreviewBlock;

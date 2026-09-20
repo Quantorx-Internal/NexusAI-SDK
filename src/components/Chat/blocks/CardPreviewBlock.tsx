@@ -1,213 +1,199 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { CreditCard } from 'lucide-react-native';
-import { Card } from '../../ui/Card';
-import { CardPreview } from '../../../types';
+import { View, Text, StyleSheet } from 'react-native';
+import { CreditCard, Snowflake, Globe, Wifi, KeyRound, RefreshCw, Info } from 'lucide-react-native';
+import { Card, DetailRow, ActionRow, StatusPill, IconBox, iconOn } from '../../ui';
+import { color, layout, radius, size, text, iconStroke, Tone } from '../../../theme/tokens';
+import { formatCurrency } from '../../../lib/utils';
+import { CardAction, CardPreview } from '../../../types';
+
+/**
+ * Family B · CardPreview — same chassis as TransferPreview.
+ *
+ * The title is the action as a verb phrase ("Set daily limit", "Freeze card"),
+ * because that is what the user is authorizing. Limit changes show the old value
+ * struck through above the new one in the amount role, so the comparison is the
+ * point of the card. There is no Edit button: the payload has no editable field.
+ *
+ * Freeze uses the info icon container rather than brand — it is a protective
+ * action, not a promotional one.
+ */
 
 interface CardPreviewBlockProps {
     cardPreview: CardPreview;
+    locale?: 'en' | 'ar';
     onConfirm?: () => void;
     onCancel?: () => void;
-    locale?: 'en' | 'ar';
+    confirmedLabel?: string;
+    working?: boolean;
 }
+
+const actionLabels: Record<CardAction, { en: string; ar: string }> = {
+    freeze: { en: 'Freeze card', ar: 'تجميد البطاقة' },
+    unfreeze: { en: 'Unfreeze card', ar: 'إلغاء تجميد البطاقة' },
+    set_daily_limit: { en: 'Set daily limit', ar: 'تعيين الحد اليومي' },
+    set_transaction_limit: { en: 'Set transaction limit', ar: 'تعيين حد المعاملة' },
+    toggle_international: { en: 'International payments', ar: 'المدفوعات الدولية' },
+    toggle_online: { en: 'Online payments', ar: 'المدفوعات عبر الإنترنت' },
+    request_replacement: { en: 'Request replacement', ar: 'طلب بطاقة بديلة' },
+    reset_pin: { en: 'Reset PIN', ar: 'إعادة تعيين الرمز السري' },
+};
+
+const actionIcons: Record<CardAction, { Icon: any; tone: Tone }> = {
+    freeze: { Icon: Snowflake, tone: 'info' },
+    unfreeze: { Icon: Snowflake, tone: 'info' },
+    set_daily_limit: { Icon: CreditCard, tone: 'brandTint' },
+    set_transaction_limit: { Icon: CreditCard, tone: 'brandTint' },
+    toggle_international: { Icon: Globe, tone: 'brandTint' },
+    toggle_online: { Icon: Wifi, tone: 'brandTint' },
+    request_replacement: { Icon: RefreshCw, tone: 'brandTint' },
+    reset_pin: { Icon: KeyRound, tone: 'brandTint' },
+};
 
 export function CardPreviewBlock({
     cardPreview,
+    locale = 'en',
     onConfirm,
     onCancel,
-    locale = 'en',
+    confirmedLabel,
+    working,
 }: CardPreviewBlockProps) {
-    const actionLabels: Record<string, { en: string; ar: string }> = {
-        freeze: { en: 'Freeze Card', ar: 'تجميد البطاقة' },
-        unfreeze: { en: 'Unfreeze Card', ar: 'إلغاء تجميد البطاقة' },
-        set_daily_limit: { en: 'Set Daily Limit', ar: 'تعيين الحد اليومي' },
-        set_transaction_limit: { en: 'Set Transaction Limit', ar: 'تعيين حد المعاملة' },
-        toggle_international: { en: 'Toggle International Transactions', ar: 'تبديل المعاملات الدولية' },
-        toggle_online: { en: 'Toggle Online Transactions', ar: 'تبديل المعاملات عبر الإنترنت' },
-        request_replacement: { en: 'Request Replacement', ar: 'طلب بطاقة بديلة' },
-        reset_pin: { en: 'Reset PIN', ar: 'إعادة تعيين الرمز السري' },
-    };
-
-    const actionLabel = actionLabels[cardPreview.action]?.[locale] || cardPreview.action;
-
-    const formatNumber = (num: number) => {
-        return num.toLocaleString(locale === 'ar' ? 'ar-SA' : 'en-US');
-    };
+    const isAr = locale === 'ar';
+    const { action } = cardPreview;
 
     const t = {
-        title: locale === 'ar' ? 'معاينة إجراء البطاقة' : 'Card Action Preview',
-        pending: locale === 'ar' ? 'قيد الانتظار' : 'Pending',
-        card: locale === 'ar' ? 'البطاقة' : 'Card',
-        action: locale === 'ar' ? 'الإجراء' : 'Action',
-        newDailyLimit: locale === 'ar' ? 'الحد اليومي الجديد' : 'New Daily Limit',
-        newTransactionLimit: locale === 'ar' ? 'حد المعاملة الجديد' : 'New Transaction Limit',
-        cancel: locale === 'ar' ? 'إلغاء' : 'Cancel',
-        confirm: locale === 'ar' ? 'تأكيد' : 'Confirm',
+        awaiting: isAr ? 'بانتظار التأكيد' : 'Awaiting confirmation',
+        currentDaily: isAr ? 'الحد اليومي الحالي' : 'Current daily limit',
+        newDaily: isAr ? 'الحد اليومي الجديد' : 'New daily limit',
+        currentTxn: isAr ? 'حد المعاملة الحالي' : 'Current transaction limit',
+        newTxn: isAr ? 'حد المعاملة الجديد' : 'New transaction limit',
+        status: isAr ? 'الحالة' : 'Status',
+        on: isAr ? 'مفعّل' : 'On',
+        off: isAr ? 'معطّل' : 'Off',
+        active: isAr ? 'نشطة' : 'Active',
+        frozen: isAr ? 'مجمدة' : 'Frozen',
+        confirmed: isAr ? 'تم التأكيد' : 'Confirmed',
+        confirmLimit: isAr ? 'تأكيد الحد الجديد' : 'Confirm new limit',
+        confirm: isAr ? 'تأكيد' : 'Confirm',
+        cancel: isAr ? 'إلغاء' : 'Cancel',
+        card: isAr ? 'البطاقة' : 'Card',
     };
 
+    const title = actionLabels[action]?.[locale] || action;
+    const { Icon, tone } = actionIcons[action] || actionIcons.set_daily_limit;
+
+    const money = (value: number) => formatCurrency(value, 'SAR', locale);
+
+    const isLimit = action === 'set_daily_limit' || action === 'set_transaction_limit';
+    const isToggle = action === 'toggle_international' || action === 'toggle_online';
+    const isFreeze = action === 'freeze' || action === 'unfreeze';
+    // A confirmed card stops asking for a decision: neutral border, success pill.
+    const done = Boolean(confirmedLabel);
+    // An action with nothing to compare (freeze without a known current status,
+    // reset PIN, replacement) says everything in its title and object block —
+    // an empty terms block would just leave a hole above the button.
+    const hasTerms = isLimit || isToggle || (isFreeze && Boolean(cardPreview.cardStatus));
+
+    const newValue =
+        action === 'set_daily_limit' ? cardPreview.newDailyLimit : cardPreview.newTransactionLimit;
+    const currentValue =
+        action === 'set_daily_limit'
+            ? cardPreview.currentDailyLimit
+            : cardPreview.currentTransactionLimit;
+
+    const cardSubtitle = [
+        cardPreview.cardNetwork ? cardPreview.cardNetwork.toUpperCase() : null,
+        cardPreview.cardLastFour ? `•••• ${cardPreview.cardLastFour}` : null,
+    ]
+        .filter(Boolean)
+        .join(' · ');
+
     return (
-        <Card variant="gradient" style={styles.container}>
+        <Card variant={done ? 'info' : 'decision'}>
             <View style={styles.header}>
-                <Text style={styles.title}>{t.title}</Text>
-                <View style={styles.pendingBadge}>
-                    <Text style={styles.pendingText}>{t.pending}</Text>
-                </View>
+                <Text style={text('cardTitle')} numberOfLines={2}>
+                    {title}
+                </Text>
+                <StatusPill
+                    label={done ? t.confirmed : t.awaiting}
+                    tone={done ? 'success' : 'brandTint'}
+                    dot={!done}
+                />
             </View>
 
-            <View style={styles.cardInfo}>
-                <View style={styles.iconContainer}>
-                    <CreditCard size={20} color="#fff" />
-                </View>
-                <View style={styles.cardDetails}>
-                    <Text style={styles.cardLabel}>{t.card}</Text>
-                    <Text style={styles.cardName}>
-                        {cardPreview.cardName || `Card ${cardPreview.cardId.slice(-4)}`}
+            {/* The object the action applies to. */}
+            <View style={styles.object}>
+                <IconBox box={size.iconBox.md} tone={tone}>
+                    <Icon size={size.icon.md} color={iconOn(tone)} strokeWidth={iconStroke} />
+                </IconBox>
+                <View style={styles.objectText}>
+                    <Text style={text('rowValue')} numberOfLines={1}>
+                        {cardPreview.cardName || `${t.card} ${cardPreview.cardId.slice(-4)}`}
                     </Text>
+                    {cardSubtitle ? (
+                        <Text style={text('caption')} numberOfLines={1}>
+                            {cardSubtitle}
+                        </Text>
+                    ) : null}
                 </View>
             </View>
 
-            <View style={styles.detailsSection}>
-                <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>{t.action}</Text>
-                    <Text style={styles.detailValue}>{actionLabel}</Text>
+            {hasTerms ? (
+                <View style={styles.terms}>
+                    {isLimit ? (
+                        <>
+                            <DetailRow
+                                label={action === 'set_daily_limit' ? t.currentDaily : t.currentTxn}
+                                value={currentValue !== undefined ? money(currentValue) : null}
+                                struck={currentValue !== undefined}
+                            />
+                            <DetailRow
+                                label={action === 'set_daily_limit' ? t.newDaily : t.newTxn}
+                                value={newValue !== undefined ? money(newValue) : null}
+                                total
+                            />
+                        </>
+                    ) : isToggle ? (
+                        <DetailRow label={t.status} value={`${title} → ${t.on}`} />
+                    ) : isFreeze && cardPreview.cardStatus ? (
+                        <DetailRow
+                            label={t.status}
+                            value={`${cardPreview.cardStatus === 'frozen' ? t.frozen : t.active} → ${action === 'freeze' ? t.frozen : t.active}`}
+                        />
+                    ) : null}
                 </View>
+            ) : null}
 
-                {cardPreview.newDailyLimit !== undefined && (
-                    <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>{t.newDailyLimit}</Text>
-                        <Text style={styles.detailValue}>
-                            {formatNumber(cardPreview.newDailyLimit)} SAR
-                        </Text>
-                    </View>
-                )}
-
-                {cardPreview.newTransactionLimit !== undefined && (
-                    <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>{t.newTransactionLimit}</Text>
-                        <Text style={styles.detailValue}>
-                            {formatNumber(cardPreview.newTransactionLimit)} SAR
-                        </Text>
-                    </View>
-                )}
-            </View>
-
-            {(onConfirm || onCancel) && (
-                <View style={styles.actions}>
-                    {onCancel && (
-                        <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
-                            <Text style={styles.cancelButtonText}>{t.cancel}</Text>
-                        </TouchableOpacity>
-                    )}
-                    {onConfirm && (
-                        <TouchableOpacity style={styles.confirmButton} onPress={onConfirm}>
-                            <Text style={styles.confirmButtonText}>{t.confirm}</Text>
-                        </TouchableOpacity>
-                    )}
-                </View>
-            )}
+            <ActionRow
+                primaryLabel={onConfirm ? (isLimit ? t.confirmLimit : t.confirm) : undefined}
+                onPrimary={onConfirm}
+                ghostLabel={onCancel ? t.cancel : undefined}
+                onGhost={onCancel}
+                working={working}
+                confirmedLabel={confirmedLabel}
+            />
         </Card>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        padding: 20,
-        marginVertical: 8,
-    },
     header: {
         flexDirection: 'row',
+        alignItems: 'center',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    title: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: '#fff',
-    },
-    pendingBadge: {
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 8,
-    },
-    pendingText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: '500',
-    },
-    cardInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        padding: 12,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        borderRadius: 12,
-        marginBottom: 20,
-    },
-    iconContainer: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    cardDetails: {
-        flex: 1,
-    },
-    cardLabel: {
-        fontSize: 12,
-        color: 'rgba(255,255,255,0.7)',
-    },
-    cardName: {
-        fontSize: 14,
-        fontWeight: '500',
-        color: '#fff',
-    },
-    detailsSection: {
         gap: 8,
-        marginBottom: 20,
+        marginBottom: layout.sectionGap,
     },
-    detailRow: {
+    object: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-    },
-    detailLabel: {
-        fontSize: 14,
-        color: 'rgba(255,255,255,0.8)',
-    },
-    detailValue: {
-        fontSize: 14,
-        fontWeight: '500',
-        color: 'rgba(255,255,255,0.8)',
-    },
-    actions: {
-        flexDirection: 'row',
-        gap: 8,
-    },
-    cancelButton: {
-        flex: 1,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        paddingVertical: 12,
-        borderRadius: 8,
         alignItems: 'center',
+        gap: layout.rowGap,
+        backgroundColor: color.surface2,
+        borderRadius: radius.inner,
+        padding: layout.rowGap,
+        marginBottom: layout.sectionGap,
     },
-    cancelButtonText: {
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: '500',
-    },
-    confirmButton: {
-        flex: 1,
-        backgroundColor: '#fff',
-        paddingVertical: 12,
-        borderRadius: 8,
-        alignItems: 'center',
-    },
-    confirmButtonText: {
-        color: '#4F008D',
-        fontSize: 14,
-        fontWeight: '600',
-    },
+    objectText: { flex: 1 },
+    terms: { gap: layout.rowGap, marginBottom: layout.sectionGap },
 });
+
+export default CardPreviewBlock;

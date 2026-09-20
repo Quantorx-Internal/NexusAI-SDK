@@ -57,17 +57,8 @@ export interface ChatMessageUI {
     showAccounts: boolean;
     showBeneficiaries: boolean;
     transferPreview?: TransferPreview | null;
-    transferSuccess?: {
-        transactionId: string;
-        amount?: number;
-        currency?: string;
-        beneficiaryName?: string;
-    } | null;
-    exchangeRate?: {
-        from: string;
-        to: string;
-        rate: number;
-    } | null;
+    transferSuccess?: TransferSuccess | null;
+    exchangeRate?: ExchangeRate | null;
     requestOtp: boolean;
     showCards?: boolean;
     cardPreview?: CardPreview | null;
@@ -79,6 +70,19 @@ export interface ChatMessageUI {
     billPaymentPreview?: BillPaymentPreview | null;
     billPaymentSuccess?: BillPaymentSuccess | null;
     ticketCreated?: TicketCreated | null;
+    /**
+     * A QUERY, not data. The assistant describes which transactions to show and
+     * the client resolves it against the accounts API — the same contract the
+     * web app uses.
+     */
+    transactionList?: TransactionListQuery | null;
+    /** Personalised offers, in the server's own shape (see ProductRecommendationPayload). */
+    productRecommendation?: ProductRecommendationPayload | null;
+    /** Ask the user for a figure before a transfer can be previewed. */
+    requestAmount?: RequestAmount | null;
+    /** Server-driven buttons. Currently only sent alongside cards that already
+     *  carry their own Confirm/Cancel, so nothing renders them yet. */
+    actions?: UiAction[] | null;
 }
 
 export interface ChatMessage {
@@ -97,10 +101,9 @@ export interface ChatMessage {
     spendingBreakdown?: SpendingBreakdown[];
     subscriptions?: Subscription[];
     spendingInsights?: SpendingInsight[];
-    // Recommendations
-    recommendations?: Recommendation[];
-    recommendationsIntro?: string;
-    recommendationsIntroAr?: string;
+    // Resolved transaction rows for ui.transactionList
+    transactions?: Transaction[];
+    transactionSummary?: { count: number; totalIn: number; totalOut: number; currency: string };
 }
 
 // Recommendation type for personalized offers
@@ -125,14 +128,48 @@ export interface TransferPreview {
     fromAccountName?: string;
     beneficiaryId: string;
     beneficiaryName?: string;
+    /** Bank (and country) shown as the qualifier under the recipient name. */
+    beneficiaryBank?: string;
     amount: number;
     currency: string;
     type?: 'national' | 'international';
     convertedAmount?: number;
+    /**
+     * Currency of `convertedAmount`. When absent the card falls back to SAR,
+     * which is the settlement reading the API has always used.
+     */
+    convertedCurrency?: string;
     exchangeRate?: number;
     purpose?: TransferPurpose;
     fees?: number;
     totalAmount?: number;
+}
+
+/**
+ * The receipt for a completed transfer. Previously declared three times across
+ * the codebase; this is now the single definition.
+ */
+export interface TransferSuccess {
+    transactionId?: string;
+    transferId?: string;
+    amount?: number;
+    currency?: string;
+    beneficiaryName?: string;
+    /**
+     * Masked source account. A receipt without the debited account is hard to
+     * reconcile, so the card renders this row whenever the payload carries it.
+     */
+    fromAccountName?: string;
+    status?: string;
+    completedAt?: string;
+}
+
+/** A single quoted pair: 1 `from` buys `rate` of `to`. */
+export interface ExchangeRate {
+    from: string;
+    to: string;
+    rate: number;
+    timestamp?: string;
 }
 
 export interface ExchangeRates {
@@ -185,6 +222,18 @@ export interface CardPreview {
     action: CardAction;
     newDailyLimit?: number;
     newTransactionLimit?: number;
+    /**
+     * The values being replaced, rendered struck-through above the new ones.
+     * Resolved from the attached card list when the payload omits them; without
+     * either, the user is confirming a change they cannot compare against.
+     */
+    currentDailyLimit?: number;
+    currentTransactionLimit?: number;
+    /** Masked card number for the object block. */
+    cardLastFour?: string;
+    cardNetwork?: 'visa' | 'mastercard' | 'mada';
+    /** Current status, so freeze/unfreeze can show what it is changing from. */
+    cardStatus?: 'active' | 'frozen';
 }
 
 export interface CardActionSuccess {
@@ -276,6 +325,9 @@ export interface BillPaymentPreview {
     fromAccountName?: string;
     amount: number;
     dueDate: string;
+    /** Drives the provider block's icon and tint. */
+    billType?: Bill['type'];
+    status?: Bill['status'];
 }
 
 export interface BillPaymentSuccess {
@@ -284,6 +336,8 @@ export interface BillPaymentSuccess {
     amount: number;
     paidAt: string;
     reference: string;
+    /** Masked source account — same reconciliation reason as TransferSuccess. */
+    fromAccountName?: string;
 }
 
 // Support Ticket Types
@@ -313,4 +367,113 @@ export interface TicketCreated {
     ticketId: string;
     ticketNumber: string;
     estimatedResolutionTime: string;
+}
+
+// Transaction History Types
+
+export interface Transaction {
+    id: string;
+    accountId: string;
+    /** debit = money out, credit = money in. */
+    type: 'debit' | 'credit';
+    amount: number;
+    currency: string;
+    date: string;
+    merchantName: string;
+    merchantNameAr?: string;
+    description?: string;
+    descriptionAr?: string;
+    category: string;
+    channel: 'card' | 'atm' | 'bill' | 'salary' | 'subscription' | 'transfer' | string;
+    status: 'completed' | 'pending' | 'reversed';
+    cardId?: string;
+}
+
+/**
+ * The filter the assistant sends in `ui.transactionList`. Every field is
+ * optional/nullable; the client forwards whatever is set to the transactions
+ * endpoint and leaves the rest to the server's defaults.
+ */
+export interface TransactionListQuery {
+    accountId?: string | null;
+    merchant?: string | null;
+    category?: string | null;
+    direction?: 'all' | 'in' | 'out' | null;
+    days?: number | null;
+    from?: string | null;
+    to?: string | null;
+    minAmount?: number | null;
+    maxAmount?: number | null;
+    limit?: number | null;
+    title?: string | null;
+    titleAr?: string | null;
+}
+
+/** What the transactions endpoint returns, plus the query it resolved. */
+export interface TransactionListResult {
+    transactions: Transaction[];
+    /** Total matching the filter — larger than `transactions.length` when limited. */
+    count: number;
+    totalIn: number;
+    totalOut: number;
+    currency: string;
+    query?: Record<string, unknown>;
+}
+
+// Server-driven affordances
+
+export interface UiAction {
+    id: string;
+    label: string;
+    labelAr?: string;
+    action: string;
+}
+
+export interface RequestAmount {
+    /** Pre-selected currency. */
+    currency?: string | null;
+    /** Currencies the user may switch between. */
+    currencies?: string[] | null;
+    min?: number | null;
+    max?: number | null;
+    /** "To Ali Ahmad" — what the amount is for. */
+    hint?: string | null;
+    hintAr?: string | null;
+}
+
+// Product Recommendations (server shape)
+
+export interface Product {
+    id: string;
+    name: string;
+    nameAr?: string;
+    category: 'saving' | 'lending' | 'credit_card' | string;
+    type: string;
+    /** A lucide icon name in kebab case, e.g. "piggy-bank". */
+    icon?: string;
+    benefit?: string;
+    benefitAr?: string;
+    eligibilityNote?: string;
+    eligibilityNoteAr?: string;
+    isPromoted?: boolean;
+    minAmount?: number | null;
+    maxAmount?: number | null;
+    minSalary?: number | null;
+}
+
+export interface ProductRecommendation {
+    product: Product;
+    /** The "why you" line — the evidence behind the offer. */
+    reason?: string;
+    reasonAr?: string;
+    matchScore?: number;
+    nextStep?: string;
+    nextStepAr?: string;
+}
+
+export interface ProductRecommendationPayload {
+    contextMessage?: string;
+    contextMessageAr?: string;
+    showApplyButton?: boolean;
+    recommendations: ProductRecommendation[];
 }

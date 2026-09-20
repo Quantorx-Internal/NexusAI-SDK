@@ -7,7 +7,8 @@ import { mockCards } from '../data/cards';
 import { mockBills } from '../data/bills';
 import { mockSpendingBreakdown, generateRandomSpendingBreakdown } from '../data/spending';
 import { mockSubscriptions } from '../data/subscriptions';
-import { getContextualRecommendations } from '../data/products';
+import { getMockProductRecommendation } from '../data/products';
+import { TransactionService } from './TransactionService';
 
 const N8N_WEBHOOK_URL = ENV.N8N_WEBHOOK_URL;
 // Generate mock response for common queries (matching web app behavior)
@@ -527,12 +528,13 @@ function getMockResponse(message: string, sessionId: string, locale: string): an
             lowerMessage === 'رصيد' || lowerMessage === 'حسابات')) {
         const mainAccount = mockAccounts.find(acc => acc.isDefault) || mockAccounts[0];
 
-        // Get contextual recommendations (randomized each time)
-        const recommendations = getContextualRecommendations({
-            highSpending: true,
-            highDiningSpending: true,
-            lowSavings: true,
-        }, 3);
+        // Offline fallback offers, in the same shape the server sends.
+        const productRecommendation = getMockProductRecommendation(
+            { highSpending: true, highDiningSpending: true, lowSavings: true },
+            3,
+            'Your dining spending increased by 22% (2,850 SAR) this month. Since your salary is transferred here, a Salary-Linked Savings plan can help you save automatically before you spend.',
+            'زاد إنفاقك على المطاعم بنسبة 22% (2,850 ريال) هذا الشهر. بما أن راتبك يُحوّل هنا، يمكن لخطة الادخار المرتبطة بالراتب مساعدتك على الادخار تلقائياً قبل الإنفاق.'
+        );
 
         return {
             message: isAr
@@ -546,16 +548,13 @@ function getMockResponse(message: string, sessionId: string, locale: string): an
                 showBills: false,
                 showSpendingBreakdown: false,
                 showSubscriptions: false,
-                showRecommendations: true,
                 transferPreview: null,
                 transferSuccess: null,
                 exchangeRate: null,
                 requestOtp: false,
+                productRecommendation,
             },
             accounts: mockAccounts,
-            recommendations: recommendations,
-            recommendationsIntro: 'Your dining spending increased by 22% (2,850 SAR) this month. Since your salary is transferred here, a Salary-Linked Savings plan can help you save automatically before you spend.',
-            recommendationsIntroAr: 'زاد إنفاقك على المطاعم بنسبة 22% (2,850 ريال) هذا الشهر. بما أن راتبك يُحوّل هنا، يمكن لخطة الادخار المرتبطة بالراتب مساعدتك على الادخار تلقائياً قبل الإنفاق.',
         };
     }
 
@@ -683,14 +682,17 @@ function getMockResponse(message: string, sessionId: string, locale: string): an
         const randomizedSpending = generateRandomSpendingBreakdown();
         const totalSpending = randomizedSpending.reduce((sum: number, cat: SpendingBreakdown) => sum + cat.amount, 0);
 
-        // Get contextual recommendations based on spending patterns (randomized each time)
-        const recommendations = getContextualRecommendations({
-            highSpending: true,
-            highDiningSpending: true,
-        }, 3);
 
         // Find top spending category for intro message
         const topCategory = randomizedSpending[0];
+
+        // Offline fallback offers, in the same shape the server sends.
+        const productRecommendation = getMockProductRecommendation(
+            { highSpending: true, highDiningSpending: true },
+            3,
+            `Your ${topCategory.categoryName} spending is ${topCategory.percentage.toFixed(1)}% of your total (${topCategory.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} SAR) and ${topCategory.change > 0 ? 'increased' : 'decreased'} by ${Math.abs(topCategory.change)}%. A cashback card could earn you rewards on these purchases, or a savings plan could help you balance it.`,
+            `إنفاقك على ${topCategory.categoryNameAr} يمثل ${topCategory.percentage.toFixed(1)}% من إجماليك (${topCategory.amount.toLocaleString('ar-SA', { minimumFractionDigits: 2 })} ريال) وقد ${topCategory.change > 0 ? 'زاد' : 'انخفض'} بنسبة ${Math.abs(topCategory.change)}%. بطاقة استرداد نقدي يمكن أن تكسبك مكافآت على هذه المشتريات، أو خطة ادخار يمكن أن تساعدك على تحقيق التوازن.`
+        );
 
         return {
             message: isAr
@@ -704,18 +706,13 @@ function getMockResponse(message: string, sessionId: string, locale: string): an
                 showBills: false,
                 showSpendingBreakdown: true,
                 showSubscriptions: false,
-                showRecommendations: true,
                 transferPreview: null,
                 transferSuccess: null,
                 exchangeRate: null,
                 requestOtp: false,
+                productRecommendation,
             },
             spendingBreakdown: randomizedSpending,
-            recommendations: recommendations,
-            recommendationsIntro: isAr
-                ? `إنفاقك على ${topCategory.categoryNameAr} زاد بنسبة ${Math.abs(topCategory.change)}% (${topCategory.amount.toLocaleString('ar-SA', { minimumFractionDigits: 2 })} ريال) هذا الشهر. بطاقة استرداد نقدي يمكن أن تكسبك مكافآت على هذه المشتريات.`
-                : `Your ${topCategory.categoryName} spending is ${topCategory.percentage.toFixed(1)}% of your total (${topCategory.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} SAR) and ${topCategory.change > 0 ? 'increased' : 'decreased'} by ${Math.abs(topCategory.change)}%. A cashback card could earn you rewards on these purchases, or a savings plan could help you balance it.`,
-            recommendationsIntroAr: `إنفاقك على ${topCategory.categoryNameAr} يمثل ${topCategory.percentage.toFixed(1)}% من إجماليك (${topCategory.amount.toLocaleString('ar-SA', { minimumFractionDigits: 2 })} ريال) وقد ${topCategory.change > 0 ? 'زاد' : 'انخفض'} بنسبة ${Math.abs(topCategory.change)}%. بطاقة استرداد نقدي يمكن أن تكسبك مكافآت على هذه المشتريات، أو خطة ادخار يمكن أن تساعدك على تحقيق التوازن.`,
         };
     }
 
@@ -909,7 +906,7 @@ export class ChatService {
             // If no structured response, just return the data with mock data attached
             if (!data.structured) {
                 console.log('ChatService: No structured data, using direct response');
-                return attachMockData(data);
+                return await attachMockData(data);
             }
 
             let parsed: any;
@@ -939,7 +936,7 @@ export class ChatService {
             }
 
             // Attach mock data based on UI flags (same as web app)
-            return attachMockData(parsed);
+            return await attachMockData(parsed);
 
         } catch (error) {
             console.error('ChatService: Error calling N8N:', error);
@@ -969,7 +966,7 @@ export class ChatService {
 }
 
 // Attach mock data based on UI flags from N8N response
-function attachMockData(parsed: any): any {
+async function attachMockData(parsed: any): Promise<any> {
     const result = { ...parsed };
 
     if (parsed.ui?.showAccounts) {
@@ -996,21 +993,23 @@ function attachMockData(parsed: any): any {
     if (parsed.ui?.spendingInsights) {
         result.spendingInsights = parsed.ui.spendingInsights;
     }
-    if (parsed.ui?.showRecommendations && !result.recommendations) {
-        result.recommendations = getContextualRecommendations({}, 3);
-        if (!result.recommendationsIntro) {
-            result.recommendationsIntro = 'Based on your recent activity, here are some products you might be interested in:';
-            result.recommendationsIntroAr = 'بناءً على نشاطك الأخير، إليك بعض المنتجات التي قد تهمك:';
+    // transactionList is a query, not data — resolve it against the accounts API.
+    if (parsed.ui?.transactionList && !result.transactions) {
+        const resolved = await TransactionService.fetchTransactions(parsed.ui.transactionList);
+        if (resolved) {
+            result.transactions = resolved.transactions;
+            result.transactionSummary = {
+                count: resolved.count,
+                totalIn: resolved.totalIn,
+                totalOut: resolved.totalOut,
+                currency: resolved.currency,
+            };
         }
     }
-    // Also add recommendations for spending breakdown queries (matching web behavior)
-    if (parsed.ui?.showSpendingBreakdown && !result.recommendations) {
-        result.ui = { ...result.ui, showRecommendations: true };
-        result.recommendations = getContextualRecommendations({ highSpending: true }, 3);
-        if (!result.recommendationsIntro) {
-            result.recommendationsIntro = 'Based on your spending patterns, here are some products that might help you save:';
-            result.recommendationsIntroAr = 'بناءً على أنماط إنفاقك، إليك بعض المنتجات التي قد تساعدك على التوفير:';
-        }
-    }
+    // NOTE: there is deliberately no mock-recommendation injection here.
+    // The server sends real, personalised offers as ui.productRecommendation —
+    // it never sends `showRecommendations`. The old branches keyed off that flag
+    // and off showSpendingBreakdown, so every offer the user saw was mock data
+    // silently standing in for the real thing.
     return result;
 }

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator, I18nManager } from 'react-native';
 import { Bot, User, Volume2, VolumeX } from 'lucide-react-native';
-import { ChatMessage as ChatMessageType, Account, Beneficiary, Card, Bill, SpendingBreakdown, Subscription, Recommendation } from '../../types';
+import { ChatMessage as ChatMessageType, Account, Beneficiary, Card, Bill, SpendingBreakdown, Subscription, ProductRecommendation, Transaction } from '../../types';
 import { SimpleMarkdownRenderer } from './SimpleMarkdownRenderer';
 import { Locale } from '../../contexts/LocaleContext';
 
@@ -27,8 +27,9 @@ interface ChatMessageProps {
     onBillPaymentConfirm?: () => void;
     onBillPaymentCancel?: () => void;
     // Recommendation handlers
-    onRecommendationApply?: (recommendation: Recommendation) => void;
-    onRecommendationDetails?: (recommendation: Recommendation) => void;
+    onRecommendationApply?: (recommendation: ProductRecommendation) => void;
+    onRecommendationDetails?: (recommendation: ProductRecommendation) => void;
+    onTransactionSelect?: (transaction: Transaction) => void;
     // Speech props
     onSpeechToggle?: (text: string, messageId: string) => void;
     isSpeaking?: boolean;
@@ -60,6 +61,7 @@ export function ChatMessage({
     onBillPaymentCancel,
     onRecommendationApply,
     onRecommendationDetails,
+    onTransactionSelect,
     onSpeechToggle,
     isSpeaking,
     isLoadingSpeech,
@@ -94,9 +96,28 @@ export function ChatMessage({
     const transferPreview = ui?.transferPreview || message.transferPreview;
     const transferSuccess = ui?.transferSuccess;
 
-    // Get card-related UI data
-    const cardPreview = ui?.cardPreview;
+    // Get card-related UI data.
+    // The preview payload carries only the NEW limit, so the value being replaced
+    // is resolved from the attached card when the SDK has it — without it the row
+    // renders an em dash and the user is confirming a change they can't compare.
     const cardActionSuccess = ui?.cardActionSuccess;
+    const rawCardPreview = ui?.cardPreview;
+    const previewCard = rawCardPreview
+        ? message.cards?.find(c => c.id === rawCardPreview.cardId)
+        : undefined;
+    const cardPreview = rawCardPreview
+        ? {
+            ...rawCardPreview,
+            cardName: rawCardPreview.cardName ?? previewCard?.name,
+            cardLastFour: rawCardPreview.cardLastFour ?? previewCard?.lastFourDigits,
+            cardNetwork: rawCardPreview.cardNetwork ?? previewCard?.cardNetwork,
+            cardStatus: rawCardPreview.cardStatus ?? previewCard?.status,
+            currentDailyLimit:
+                rawCardPreview.currentDailyLimit ?? previewCard?.limits?.dailyLimit,
+            currentTransactionLimit:
+                rawCardPreview.currentTransactionLimit ?? previewCard?.limits?.transactionLimit,
+        }
+        : undefined;
 
     // Get spending insights from message or UI (handle both array and object formats)
     const rawSpendingInsights = message.spendingInsights || ui?.spendingInsights;
@@ -104,17 +125,36 @@ export function ChatMessage({
         ? rawSpendingInsights
         : (rawSpendingInsights as any)?.insights;
 
-    // Get bill payment UI data
-    const billPaymentPreview = ui?.billPaymentPreview;
+    // Get bill payment UI data. The bill's type drives the provider block's icon
+    // and tint, and its status drives the overdue treatment, so both are resolved
+    // from the attached bill when present.
     const billPaymentSuccess = ui?.billPaymentSuccess;
+    const rawBillPreview = ui?.billPaymentPreview;
+    const previewBill = rawBillPreview
+        ? message.bills?.find(b => b.id === rawBillPreview.billId)
+        : undefined;
+    const billPaymentPreview = rawBillPreview
+        ? {
+            ...rawBillPreview,
+            providerName: rawBillPreview.providerName ?? previewBill?.providerName,
+            billType: rawBillPreview.billType ?? previewBill?.type,
+            status: rawBillPreview.status ?? previewBill?.status,
+        }
+        : undefined;
 
     // Get ticket created data
     const ticketCreated = ui?.ticketCreated;
 
-    // Get recommendations from message
-    const recommendations = message.recommendations || [];
-    const recommendationsIntro = message.recommendationsIntro;
-    const recommendationsIntroAr = message.recommendationsIntroAr;
+    // Transactions are resolved by ChatService from the ui.transactionList query;
+    // the title travels with the query so the assistant can name the list.
+    const transactions = message.transactions || [];
+    const transactionsTitle = locale === 'ar'
+        ? ui?.transactionList?.titleAr || ui?.transactionList?.title || undefined
+        : ui?.transactionList?.title || undefined;
+
+    // Offers and FX come straight off the ui payload in the server's own shape.
+    const productRecommendation = ui?.productRecommendation || undefined;
+    const exchangeRate = ui?.exchangeRate || undefined;
 
     const handleSpeechPress = () => {
         if (onSpeechToggle) {
@@ -189,9 +229,10 @@ export function ChatMessage({
                             billPaymentPreview={billPaymentPreview || undefined}
                             billPaymentSuccess={billPaymentSuccess || undefined}
                             ticketCreated={ticketCreated || undefined}
-                            recommendations={recommendations}
-                            recommendationsIntro={recommendationsIntro}
-                            recommendationsIntroAr={recommendationsIntroAr}
+                            productRecommendation={productRecommendation}
+                            exchangeRate={exchangeRate}
+                            transactions={transactions}
+                            transactionsTitle={transactionsTitle}
                             locale={locale}
                             onAction={onAction}
                             onAccountSelect={onAccountSelect}
@@ -207,6 +248,7 @@ export function ChatMessage({
                             onBillPaymentCancel={onBillPaymentCancel}
                             onRecommendationApply={onRecommendationApply}
                             onRecommendationDetails={onRecommendationDetails}
+                            onTransactionSelect={onTransactionSelect}
                             isRTL={isRTL}
                             isLayoutRTL={isLayoutRTL}
                         />

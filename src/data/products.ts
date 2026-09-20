@@ -1,4 +1,4 @@
-import { Recommendation } from '../types';
+import { Recommendation, Product, ProductRecommendation, ProductRecommendationPayload } from '../types';
 // Product recommendations database
 export const products: Recommendation[] = [
     {
@@ -114,4 +114,55 @@ export function getContextualRecommendations(context: RecommendationContext, lim
     }
 
     return filtered.slice(0, limit);
+}
+
+/**
+ * Adapts the offline mock products into the shape the server actually sends
+ * (`ui.productRecommendation`), so the offline fallback renders through the same
+ * card as a live response instead of a second, divergent code path.
+ */
+export function getMockProductRecommendation(
+    context: RecommendationContext,
+    limit: number = 3,
+    contextMessage?: string,
+    contextMessageAr?: string
+): ProductRecommendationPayload {
+    const ICON_MAP: Record<string, string> = {
+        savings: 'wallet',
+        piggybank: 'piggy-bank',
+        target: 'target',
+        trending: 'trending-up',
+        creditcard: 'credit-card',
+    };
+    const CATEGORY_MAP: Record<string, Product['category']> = {
+        Savings: 'saving',
+        Cards: 'credit_card',
+        Travel: 'credit_card',
+    };
+
+    const recommendations: ProductRecommendation[] = getContextualRecommendations(
+        context,
+        limit
+    ).map(rec => {
+        const categoryBadge = rec.badges?.find(b => b.variant === 'category');
+        return {
+            product: {
+                id: rec.id,
+                name: rec.title,
+                nameAr: rec.titleAr,
+                category: CATEGORY_MAP[categoryBadge?.text || ''] || 'saving',
+                type: rec.id,
+                icon: ICON_MAP[rec.icon] || 'wallet',
+                benefit: rec.description,
+                benefitAr: rec.descriptionAr,
+                eligibilityNote: rec.features?.[0],
+                eligibilityNoteAr: rec.featuresAr?.[0],
+                isPromoted: rec.badges?.some(b => b.variant === 'special') || false,
+            },
+            nextStep: rec.ctaQuestion,
+            nextStepAr: rec.ctaQuestionAr,
+        };
+    });
+
+    return { contextMessage, contextMessageAr, showApplyButton: true, recommendations };
 }

@@ -4,13 +4,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Volume2, VolumeX, Globe, Sparkles, Plus, Bot, Check, ChevronDown } from 'lucide-react-native';
 import { ChatMessage } from '../components/Chat/ChatMessage';
-import { ChatInput } from '../components/Chat/ChatInput';
+import { Composer } from '../components/Chat/Composer';
+import { ComposerPrompt } from '../components/Chat/ComposerPrompt';
 import { TypingIndicator } from '../components/Chat/TypingIndicator';
 import { WelcomeView, WelcomeSummary } from '../components/Chat/WelcomeView';
 import { useChatViewModel } from '../viewmodels/useChatViewModel';
 import { useSpeech } from '../hooks/useSpeech';
 import { useLocale } from '../contexts/LocaleContext';
+import { computeSuggestions } from '../lib/suggestions';
 import { mockAccounts } from '../data/accounts';
+import { mockBeneficiaries } from '../data/beneficiaries';
+import { mockSubscriptions } from '../data/subscriptions';
 import { mockBills } from '../data/bills';
 import { mockCards } from '../data/cards';
 import { mockSpendingBreakdown } from '../data/spending';
@@ -20,7 +24,7 @@ const AGENT_VOICE_STORAGE_KEY = '@ai_assistant_agent_voice';
 
 export function ChatScreen() {
     const { locale, setLocale, isRTL, t } = useLocale();
-    const { messages, isLoading, isTranscribing, sendMessage, handlers, isRecording, startRecording, stopRecording, resetChat } = useChatViewModel({ locale });
+    const { messages, isLoading, isTranscribing, sendMessage, handlers, isRecording, level, silenceProgress, startRecording, stopRecording, cancelRecording, resetChat } = useChatViewModel({ locale });
     const flatListRef = useRef<FlatList>(null);
     const [selectedVoiceId, setSelectedVoiceId] = React.useState<AgentVoiceId>('alaa-omni');
     const selectedVoice = useMemo(() => getAgentVoice(selectedVoiceId), [selectedVoiceId]);
@@ -200,6 +204,59 @@ export function ChatScreen() {
     // Check if we should show welcome view
     const showWelcome = messages.length === 0 && !isLoading;
 
+    /**
+     * Chips regenerate after every assistant turn and never repeat the answer
+     * just given, so the row is keyed off the message count and excludes what
+     * the user has already asked.
+     */
+    const suggestions = useMemo(
+        () =>
+            computeSuggestions({
+                accounts: mockAccounts,
+                bills: mockBills,
+                cards: mockCards,
+                locale,
+                exclude: messages.filter(m => m.role === 'user').map(m => m.content),
+            }),
+        [messages, locale]
+    );
+
+    /** Entity candidates the composer completes against while typing. */
+    const entityData = useMemo(
+        () => ({
+            beneficiaries: mockBeneficiaries,
+            accounts: mockAccounts,
+            cards: mockCards,
+            bills: mockBills,
+        }),
+        []
+    );
+
+    /**
+     * Verb-first working status. Derived from what the user just asked, so the
+     * wait says what is happening rather than merely that something is.
+     */
+    const workingStatus = useMemo(() => {
+        const lastUser = [...messages].reverse().find(m => m.role === 'user');
+        const q = (lastUser?.content || '').toLowerCase();
+        const isAr = locale === 'ar';
+        if (/transfer|send|حول|حوّل/.test(q)) return isAr ? 'أراجع تفاصيل التحويل' : 'Checking transfer details';
+        if (/bill|فاتور/.test(q)) return isAr ? 'أراجع فواتيرك' : 'Checking your bills';
+        if (/card|بطاق/.test(q)) return isAr ? 'أراجع بطاقاتك' : 'Checking your cards';
+        if (/spend|مصاريف|إنفاق/.test(q)) return isAr ? 'أحلل إنفاقك' : 'Analysing your spending';
+        if (/transaction|حرك/.test(q)) return isAr ? 'أجمع حركاتك' : 'Gathering your transactions';
+        if (/balance|رصيد/.test(q)) return isAr ? 'أراجع أرصدتك' : 'Checking your balances';
+        return isAr ? 'أعمل على طلبك' : 'Working on it';
+    }, [messages, locale]);
+
+    // The assistant asks for a value (an amount, an OTP) on its latest turn only —
+    // an older request is stale the moment it has been answered or abandoned.
+    const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
+    const pendingPrompt =
+        !isLoading && lastAssistant === messages[messages.length - 1]
+            ? lastAssistant?.ui
+            : undefined;
+
     // Dynamic styles based on RTL
     const dynamicStyles = {
         header: [
@@ -346,17 +403,36 @@ export function ChatScreen() {
                         )}
                         contentContainerStyle={dynamicStyles.listContent}
                         keyboardShouldPersistTaps="handled"
-                        ListFooterComponent={<TypingIndicator isVisible={isLoading} />}
+                        ListFooterComponent={
+                            <TypingIndicator
+                                isVisible={isLoading}
+                                status={workingStatus}
+                                locale={locale}
+                            />
+                        }
                     />
                 )}
 
-                <ChatInput
+                <ComposerPrompt
+                    requestAmount={pendingPrompt?.requestAmount}
+                    requestOtp={pendingPrompt?.requestOtp}
+                    locale={locale}
+                    onSubmit={handleSend}
+                    disabled={isLoading || isTranscribing}
+                />
+
+                <Composer
                     onSend={handleSend}
                     isLoading={isLoading}
                     isTranscribing={isTranscribing}
                     isRecording={isRecording}
+                    level={level}
+                    silenceProgress={silenceProgress}
                     onStartRecording={startRecording}
                     onStopRecording={stopRecording}
+                    onCancelRecording={cancelRecording}
+                    suggestions={suggestions}
+                    entityData={entityData}
                     locale={locale}
                     isRTL={isRTL}
                 />

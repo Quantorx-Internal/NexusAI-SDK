@@ -1,9 +1,24 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Zap, Droplet, Wifi, Phone, CreditCard, Building2 } from 'lucide-react-native';
-import { Card } from '../../ui/Card';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { Flag } from 'lucide-react-native';
+import { Card, SectionHeader, StatusPill, IconBox, iconOn, RowDivider } from '../../ui';
+import { color, layout, size, text, iconStroke } from '../../../theme/tokens';
+import { formatCurrency, formatDateShort } from '../../../lib/utils';
 import { Bill } from '../../../types';
-import { formatCurrency } from '../../../lib/utils';
+import { billVisual } from './billVisuals';
+
+/**
+ * Family D · BillList.
+ *
+ * One container, rows separated by hairlines — five separately bordered cards
+ * cost ~100pt of chrome and made the thread scroll forever. One container reads
+ * as one answer.
+ *
+ * Urgency without shouting: overdue changes exactly three things — the amount
+ * colour, the pill, and a small flag when the bill is priority. The row
+ * background and the type icon stay calm, so a list of five overdue bills is
+ * still readable.
+ */
 
 interface BillListBlockProps {
     bills: Bill[];
@@ -11,256 +26,124 @@ interface BillListBlockProps {
     onSelect?: (bill: Bill) => void;
 }
 
-export function BillListBlock({
-    bills,
-    locale = 'en',
-    onSelect,
-}: BillListBlockProps) {
+export function BillListBlock({ bills, locale = 'en', onSelect }: BillListBlockProps) {
     if (bills.length === 0) return null;
-
-    const getBillIcon = (type: Bill['type']) => {
-        switch (type) {
-            case 'electricity':
-                return { Icon: Zap, color: '#eab308' };
-            case 'water':
-                return { Icon: Droplet, color: '#3b82f6' };
-            case 'internet':
-                return { Icon: Wifi, color: '#a855f7' };
-            case 'phone':
-                return { Icon: Phone, color: '#00C58D' };
-            case 'credit_card':
-                return { Icon: CreditCard, color: '#ef4444' };
-            case 'government':
-                return { Icon: Building2, color: '#6b7280' };
-            default:
-                return { Icon: Building2, color: '#4F008D' };
-        }
-    };
-
-    const formatDate = (dateString: string) => {
-        const date = new Date(dateString);
-        return date.toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-        });
-    };
-
-    const isOverdue = (bill: Bill) => {
-        return bill.status === 'overdue' || new Date(bill.dueDate) < new Date();
-    };
+    const isAr = locale === 'ar';
 
     const t = {
-        title: locale === 'ar' ? 'الفواتير المعلقة' : 'Pending Bills',
-        account: locale === 'ar' ? 'رقم الحساب' : 'Account',
-        due: locale === 'ar' ? 'تاريخ الاستحقاق' : 'Due',
-        overdue: locale === 'ar' ? 'متأخر' : 'Overdue',
-        paid: locale === 'ar' ? 'مدفوع' : 'Paid',
-        pending: locale === 'ar' ? 'معلق' : 'Pending',
-        priority: locale === 'ar' ? 'أولوية' : 'Priority',
+        title: isAr ? 'الفواتير المستحقة' : 'Pending bills',
+        acct: isAr ? 'حساب' : 'Acct',
+        overdue: isAr ? 'متأخرة' : 'Overdue',
+        due: isAr ? 'تستحق' : 'Due',
+        paid: isAr ? 'مدفوعة' : 'Paid',
     };
 
     return (
-        <View style={styles.container}>
-            <Text style={styles.sectionTitle}>{t.title}</Text>
-
-            <View style={styles.billList}>
-                {bills.map((bill) => {
-                    const { Icon, color } = getBillIcon(bill.type);
-                    const providerName = locale === 'ar' ? bill.providerNameAr : bill.providerName;
-                    const overdue = isOverdue(bill);
-
-                    const getStatusText = () => {
-                        if (overdue) return t.overdue;
-                        if (bill.status === 'paid') return t.paid;
-                        return t.pending;
-                    };
-
-                    return (
-                        <TouchableOpacity
-                            key={bill.id}
-                            activeOpacity={onSelect ? 0.7 : 1}
-                            onPress={() => onSelect?.(bill)}
-                        >
-                            <Card style={[
-                                styles.billCard,
-                                overdue && styles.overdueCard
-                            ]}>
-                                <View style={styles.billContent}>
-                                    <View style={styles.leftSection}>
-                                        <View style={[styles.iconContainer, { backgroundColor: `${color}1A` }]}>
-                                            <Icon size={20} color={color} />
-                                        </View>
-
-                                        <View style={styles.billDetails}>
-                                            <View style={styles.nameRow}>
-                                                <Text style={styles.providerName}>{providerName}</Text>
-                                                {bill.isPriority && (
-                                                    <View style={styles.priorityBadge}>
-                                                        <Text style={styles.priorityText}>{t.priority}</Text>
-                                                    </View>
-                                                )}
-                                            </View>
-
-                                            <Text style={styles.accountNumber}>
-                                                {t.account}: {bill.accountNumber}
-                                            </Text>
-
-                                            <View style={styles.statusRow}>
-                                                <View style={[
-                                                    styles.statusBadge,
-                                                    overdue ? styles.overdueBadge :
-                                                        bill.status === 'paid' ? styles.paidBadge : styles.pendingBadge
-                                                ]}>
-                                                    <Text style={[
-                                                        styles.statusText,
-                                                        overdue ? styles.overdueText :
-                                                            bill.status === 'paid' ? styles.paidText : styles.pendingText
-                                                    ]}>
-                                                        {getStatusText()}
-                                                    </Text>
-                                                </View>
-                                                <Text style={[
-                                                    styles.dueDate,
-                                                    overdue && styles.overdueDueDate
-                                                ]}>
-                                                    {t.due}: {formatDate(bill.dueDate)}
-                                                </Text>
-                                            </View>
-                                        </View>
-                                    </View>
-
-                                    <Text style={[
-                                        styles.amount,
-                                        overdue && styles.overdueAmount
-                                    ]}>
-                                        {formatCurrency(bill.amount, 'SAR', locale)}
-                                    </Text>
-                                </View>
-                            </Card>
-                        </TouchableOpacity>
-                    );
-                })}
-            </View>
+        <View>
+            <SectionHeader title={t.title} count={bills.length} />
+            <Card variant="flush" style={styles.container}>
+                {bills.map((bill, index) => (
+                    <React.Fragment key={bill.id}>
+                        {index > 0 && <RowDivider />}
+                        <BillRow bill={bill} locale={locale} labels={t} onSelect={onSelect} />
+                    </React.Fragment>
+                ))}
+            </Card>
         </View>
     );
 }
 
+function BillRow({
+    bill,
+    locale,
+    labels,
+    onSelect,
+}: {
+    bill: Bill;
+    locale: 'en' | 'ar';
+    labels: Record<string, string>;
+    onSelect?: (bill: Bill) => void;
+}) {
+    const providerName = locale === 'ar' ? bill.providerNameAr : bill.providerName;
+    const isPaid = bill.status === 'paid';
+    const overdue = !isPaid && (bill.status === 'overdue' || new Date(bill.dueDate) < new Date());
+
+    const { Icon, tone } = billVisual(bill.type);
+    const dueText = formatDateShort(bill.dueDate, locale);
+
+    const pill = isPaid
+        ? { label: labels.paid, tone: 'success' as const, dot: false }
+        : overdue
+            ? { label: `${labels.overdue} · ${dueText}`, tone: 'danger' as const, dot: true }
+            : { label: `${labels.due} ${dueText}`, tone: 'warning' as const, dot: true };
+
+    return (
+        <Pressable
+            onPress={onSelect ? () => onSelect(bill) : undefined}
+            disabled={!onSelect || isPaid}
+            style={({ pressed }) => [
+                styles.row,
+                pressed && onSelect && !isPaid && styles.pressed,
+            ]}
+        >
+            <IconBox box={size.iconBox.md} tone={tone}>
+                <Icon size={size.icon.md} color={iconOn(tone)} strokeWidth={iconStroke} />
+            </IconBox>
+
+            <View style={styles.rowText}>
+                <View style={styles.nameRow}>
+                    <Text
+                        style={text('rowValue', isPaid ? { color: color.text.secondary } : undefined)}
+                        numberOfLines={1}
+                    >
+                        {providerName}
+                    </Text>
+                    {bill.isPriority && !isPaid ? (
+                        <Flag size={12} color={color.danger.fg} strokeWidth={iconStroke} />
+                    ) : null}
+                </View>
+                <Text style={text('caption')} numberOfLines={1}>
+                    {labels.acct} {bill.accountNumber}
+                </Text>
+            </View>
+
+            <View style={styles.rowRight}>
+                <Text
+                    style={[
+                        text('rowValue', {
+                            fontWeight: '700',
+                            color: isPaid
+                                ? color.text.tertiary
+                                : overdue
+                                    ? color.danger.fg
+                                    : color.text.primary,
+                        }),
+                        styles.tabular,
+                    ]}
+                    numberOfLines={1}
+                >
+                    {formatCurrency(bill.amount, 'SAR', locale)}
+                </Text>
+                <StatusPill label={pill.label} tone={pill.tone} dot={pill.dot} />
+            </View>
+        </Pressable>
+    );
+}
+
 const styles = StyleSheet.create({
-    container: {
-        marginVertical: 8,
-    },
-    sectionTitle: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 8,
-        paddingHorizontal: 4,
-    },
-    billList: {
-        gap: 8,
-    },
-    billCard: {
-        padding: 12,
-    },
-    overdueCard: {
-        borderColor: 'rgba(239,68,68,0.5)',
-        backgroundColor: 'rgba(239,68,68,0.05)',
-    },
-    billContent: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-    },
-    leftSection: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: 12,
-        flex: 1,
-    },
-    iconContainer: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    billDetails: {
-        flex: 1,
-    },
-    nameRow: {
+    container: { paddingVertical: 4 },
+    row: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
-        marginBottom: 4,
+        gap: layout.rowGap,
+        paddingVertical: layout.listRowPadV,
+        paddingHorizontal: layout.cardPadding,
     },
-    providerName: {
-        fontSize: 14,
-        fontWeight: '500',
-        color: '#333',
-    },
-    priorityBadge: {
-        backgroundColor: 'rgba(251,191,36,0.2)',
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 4,
-    },
-    priorityText: {
-        fontSize: 10,
-        fontWeight: '500',
-        color: '#d97706',
-    },
-    accountNumber: {
-        fontSize: 12,
-        color: '#6B7280',
-        marginBottom: 8,
-    },
-    statusRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    statusBadge: {
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 4,
-    },
-    overdueBadge: {
-        backgroundColor: 'rgba(239,68,68,0.1)',
-    },
-    paidBadge: {
-        backgroundColor: 'rgba(34,197,94,0.1)',
-    },
-    pendingBadge: {
-        backgroundColor: 'rgba(107,114,128,0.1)',
-    },
-    statusText: {
-        fontSize: 10,
-        fontWeight: '500',
-    },
-    overdueText: {
-        color: '#ef4444',
-    },
-    paidText: {
-        color: '#00C58D',
-    },
-    pendingText: {
-        color: '#6B7280',
-    },
-    dueDate: {
-        fontSize: 12,
-        color: '#6B7280',
-    },
-    overdueDueDate: {
-        color: '#ef4444',
-        fontWeight: '500',
-    },
-    amount: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#333',
-    },
-    overdueAmount: {
-        color: '#ef4444',
-    },
+    pressed: { backgroundColor: color.surface2 },
+    rowText: { flex: 1, gap: 2 },
+    nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    rowRight: { alignItems: 'flex-end', gap: 4 },
+    tabular: { fontVariant: ['tabular-nums'] },
 });
+
+export default BillListBlock;

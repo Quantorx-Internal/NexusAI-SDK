@@ -1,123 +1,189 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { Card } from '../../ui/Card';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { Globe, Check } from 'lucide-react-native';
+import { SectionHeader } from '../../ui';
+import { color, layout, radius, border, size, text, elevation, iconStroke } from '../../../theme/tokens';
+import { initials } from '../../../lib/utils';
 import { Beneficiary } from '../../../types';
+
+/**
+ * Family A · BeneficiaryList — horizontal chips, not portrait cards.
+ *
+ * 40pt avatar, name, and one caption line reading "bank · qualifier". At 64pt
+ * tall instead of 150 the payee picker stops dominating the thread, and ~1.6
+ * chips are visible so the cut-off third chip is itself the scroll cue.
+ *
+ * The caption is where a payee is actually distinguished, so it gets the room
+ * that the old oversized avatar was taking. An international payee carries an
+ * 18pt globe badge on the avatar and its country in the caption — previously a
+ * local and an overseas payee looked identical, despite different fees and flow.
+ */
 
 interface BeneficiaryListBlockProps {
     beneficiaries: Beneficiary[];
+    title?: string;
     locale?: 'en' | 'ar';
     onSelect?: (beneficiary: Beneficiary) => void;
+    selectedId?: string;
 }
 
-function ChatBeneficiaryCard({
-    beneficiary,
-    locale = 'en',
-    onSelect,
-}: {
-    beneficiary: Beneficiary;
-    locale?: 'en' | 'ar';
-    onSelect?: (beneficiary: Beneficiary) => void;
-}) {
-    const displayName = locale === 'ar' ? beneficiary.nameAr : beneficiary.name;
-    const bankName = locale === 'ar' ? beneficiary.bankNameAr : beneficiary.bankName;
+const CHIP_WIDTH = 204;
 
-    return (
-        <TouchableOpacity activeOpacity={0.8} onPress={() => onSelect?.(beneficiary)}>
-            <Card style={styles.cardContainer}>
-                <View style={styles.cardContent}>
-                    {/* Initials Avatar */}
-                    <View style={styles.avatar}>
-                        <Text style={styles.avatarText}>
-                            {displayName.charAt(0).toUpperCase()}
-                        </Text>
-                    </View>
-
-                    <View style={styles.textContainer}>
-                        <Text style={styles.nameText} numberOfLines={1}>{displayName}</Text>
-                        <Text style={styles.bankText} numberOfLines={1}>{bankName}</Text>
-                    </View>
-                </View>
-            </Card>
-        </TouchableOpacity>
-    );
-}
+/** Avatar fill rotates so adjacent payees differ; all three pass contrast on white initials. */
+const AVATAR_RAMP = [color.brand[600], color.brand[500], color.brand[400]];
 
 export function BeneficiaryListBlock({
     beneficiaries,
+    title,
     locale = 'en',
     onSelect,
+    selectedId,
 }: BeneficiaryListBlockProps) {
     if (beneficiaries.length === 0) return null;
 
     return (
-        <View style={styles.container}>
+        <View>
+            {title ? <SectionHeader title={title} count={beneficiaries.length} /> : null}
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.scrollContent}
+                contentContainerStyle={styles.scroller}
+                snapToInterval={CHIP_WIDTH + layout.scrollerGap}
+                decelerationRate="fast"
             >
                 {beneficiaries.map((beneficiary, index) => (
-                    <View
+                    <BeneficiaryChip
                         key={beneficiary.id}
-                        style={styles.cardWrapper}
-                    >
-                        <ChatBeneficiaryCard
-                            beneficiary={beneficiary}
-                            locale={locale}
-                            onSelect={onSelect}
-                        />
-                    </View>
+                        beneficiary={beneficiary}
+                        index={index}
+                        locale={locale}
+                        onSelect={onSelect}
+                        selected={selectedId === beneficiary.id}
+                    />
                 ))}
             </ScrollView>
         </View>
     );
 }
 
+function BeneficiaryChip({
+    beneficiary,
+    index,
+    locale,
+    onSelect,
+    selected,
+}: {
+    beneficiary: Beneficiary;
+    index: number;
+    locale: 'en' | 'ar';
+    onSelect?: (beneficiary: Beneficiary) => void;
+    selected?: boolean;
+}) {
+    const isAr = locale === 'ar';
+    const name = isAr ? beneficiary.nameAr : beneficiary.name;
+    const bank = isAr ? beneficiary.bankNameAr : beneficiary.bankName;
+    const isInternational = beneficiary.type === 'international';
+
+    // "bank · qualifier" — country for an overseas payee, account kind otherwise.
+    const qualifier = isInternational
+        ? (isAr ? beneficiary.countryAr : beneficiary.country) || (isAr ? 'دولي' : 'International')
+        : beneficiary.accountType === 'business'
+            ? isAr
+                ? 'أعمال'
+                : 'Business'
+            : null;
+
+    const caption = [bank, qualifier].filter(Boolean).join(' · ');
+    const avatarColor = AVATAR_RAMP[index % AVATAR_RAMP.length];
+
+    return (
+        <Pressable
+            onPress={onSelect ? () => onSelect(beneficiary) : undefined}
+            disabled={!onSelect}
+            style={({ pressed }) => [
+                styles.chip,
+                selected && styles.chipSelected,
+                pressed && !selected && styles.chipPressed,
+            ]}
+        >
+            <View>
+                <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
+                    <Text style={text('rowValue', { color: color.text.inverse, fontWeight: '700' })}>
+                        {initials(name)}
+                    </Text>
+                </View>
+                {isInternational && (
+                    <View style={styles.globeBadge}>
+                        <Globe size={11} color={color.brand[600]} strokeWidth={iconStroke} />
+                    </View>
+                )}
+            </View>
+
+            <View style={styles.chipText}>
+                <Text style={text('rowValue')} numberOfLines={1}>
+                    {name}
+                </Text>
+                <Text style={text('caption')} numberOfLines={1}>
+                    {caption}
+                </Text>
+            </View>
+
+            {selected && (
+                <View style={styles.check}>
+                    <Check size={12} color={color.text.inverse} strokeWidth={3} />
+                </View>
+            )}
+        </Pressable>
+    );
+}
+
 const styles = StyleSheet.create({
-    container: {
-        marginVertical: 8,
-    },
-    scrollContent: {
-        paddingRight: 16,
-    },
-    cardWrapper: {
-        marginRight: 12,
-    },
-    cardContainer: {
-        width: 160,
-        padding: 12,
-    },
-    cardContent: {
+    scroller: { gap: layout.scrollerGap, paddingRight: layout.scrollerPeek },
+    chip: {
+        width: CHIP_WIDTH,
+        height: 64,
+        flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: 10,
+        padding: 12,
+        borderRadius: radius.card,
+        backgroundColor: color.surface2,
     },
+    chipSelected: {
+        backgroundColor: color.surface,
+        borderWidth: border.decision,
+        borderColor: color.borderBrand,
+    },
+    chipPressed: { backgroundColor: color.surface3, ...elevation.pressed },
     avatar: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: '#EEF2FF', // Indigo 50
+        width: size.iconBox.lg,
+        height: size.iconBox.lg,
+        borderRadius: radius.avatar,
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 4,
     },
-    avatarText: {
-        fontSize: 20,
-        fontWeight: '600',
-        color: '#4F008D', // Indigo 600 -> Purple
-    },
-    textContainer: {
+    globeBadge: {
+        position: 'absolute',
+        right: -4,
+        bottom: -4,
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: color.surface,
+        borderWidth: 1,
+        borderColor: color.border,
         alignItems: 'center',
+        justifyContent: 'center',
     },
-    nameText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#1F2937', // Gray 800
-        marginBottom: 2,
-        textAlign: 'center',
-    },
-    bankText: {
-        fontSize: 12,
-        color: '#6B7280', // Gray 500
-        textAlign: 'center',
+    chipText: { flex: 1 },
+    check: {
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: color.brand[600],
+        alignItems: 'center',
+        justifyContent: 'center',
     },
 });
+
+export default BeneficiaryListBlock;
