@@ -9,8 +9,10 @@ const config = getDefaultConfig(__dirname);
 // excludes the one from the parent folder when bundling.
 config.resolver.blockList = [
   ...Array.from(config.resolver.blockList ?? []),
-  new RegExp(path.resolve('..', 'node_modules', 'react')),
-  new RegExp(path.resolve('..', 'node_modules', 'react-native')),
+  new RegExp(path.resolve(__dirname, '../node_modules/react')),
+  new RegExp(path.resolve(__dirname, '../node_modules/react-native')),
+  new RegExp(path.resolve(__dirname, '../node_modules/react-native-svg')),
+  new RegExp(path.resolve(__dirname, '../node_modules/lucide-react-native/node_modules/react-native-svg')),
 ];
 
 config.resolver.nodeModulesPaths = [
@@ -22,6 +24,8 @@ config.resolver.extraNodeModules = {
   // Resolve the local SDK source during development. Pointing at the package
   // root makes Metro follow package.json's publish-only build/index.js entry.
   'ai-assistant': path.resolve(__dirname, '../src'),
+  'lucide-react-native': path.resolve(__dirname, './node_modules/lucide-react-native'),
+  'react-native-svg': path.resolve(__dirname, './node_modules/react-native-svg'),
 };
 
 config.watchFolders = [path.resolve(__dirname, '..')];

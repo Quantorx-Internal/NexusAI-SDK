@@ -63,6 +63,7 @@
     "expo": "*",
     "expo-av": "*",
     "expo-clipboard": "^8.0.8",
+    "expo-constants": "*",
     "expo-file-system": "*",
     "expo-linear-gradient": "^15.0.8",
     "expo-updates": "~29.0.16",

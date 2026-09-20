@@ -1,13 +1,19 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { Audio } from 'expo-av';
-import { VoiceService } from '../services/VoiceService';
+import { VoiceService } from '../../../src/services/VoiceService';
+import type { AgentVoiceId } from '../../../src/config/agentVoices';
 
 interface UseSpeechOptions {
     language?: string;
+    agentVoiceId?: AgentVoiceId;
+}
+
+interface SpeakOptions {
+    agentVoiceId?: AgentVoiceId;
 }
 
 interface UseSpeechReturn {
-    speak: (text: string, messageId: string) => Promise<void>;
+    speak: (text: string, messageId: string, options?: SpeakOptions) => Promise<void>;
     stop: () => void;
     toggle: (text: string, messageId: string) => void;
     isSpeaking: boolean;
@@ -25,7 +31,7 @@ function isArabicText(text: string): boolean {
 }
 
 export function useSpeech(options: UseSpeechOptions = {}): UseSpeechReturn {
-    const { language: defaultLanguage = 'en' } = options;
+    const { language: defaultLanguage = 'en', agentVoiceId } = options;
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [currentMessageId, setCurrentMessageId] = useState<string | null>(null);
@@ -34,10 +40,15 @@ export function useSpeech(options: UseSpeechOptions = {}): UseSpeechReturn {
 
     // Use ref to always have access to current language (fixes stale closure issue)
     const languageRef = useRef(defaultLanguage);
+    const agentVoiceIdRef = useRef(agentVoiceId);
 
     useEffect(() => {
         languageRef.current = defaultLanguage;
     }, [defaultLanguage]);
+
+    useEffect(() => {
+        agentVoiceIdRef.current = agentVoiceId;
+    }, [agentVoiceId]);
 
     // Clean markdown and special characters from text
     const cleanText = (text: string): string => {
@@ -66,7 +77,7 @@ export function useSpeech(options: UseSpeechOptions = {}): UseSpeechReturn {
         setCurrentMessageId(null);
     }, []);
 
-    const speak = useCallback(async (text: string, messageId: string) => {
+    const speak = useCallback(async (text: string, messageId: string, speakOptions: SpeakOptions = {}) => {
         if (!text.trim()) return;
 
         stop();
@@ -77,10 +88,11 @@ export function useSpeech(options: UseSpeechOptions = {}): UseSpeechReturn {
 
         try {
             const cleanedText = cleanText(text);
-            const currentLanguage = languageRef.current;
-            const detectedLanguage = isArabicText(cleanedText) ? 'ar' : currentLanguage;
+            const detectedLanguage = isArabicText(cleanedText) ? 'ar' : 'en';
 
-            const audioUri = await VoiceService.textToSpeech(cleanedText, detectedLanguage);
+            const audioUri = await VoiceService.textToSpeech(cleanedText, detectedLanguage, {
+                agentVoiceId: speakOptions.agentVoiceId ?? agentVoiceIdRef.current,
+            });
 
             if (isStoppingRef.current) return;
 

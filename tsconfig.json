@@ -4,10 +4,10 @@
     "strict": true,
     "paths": {
       "ai-assistant": [
-        "../src/index"
+        "./src/index"
       ],
       "ai-assistant/*": [
-        "../src/*"
+        "./src/*"
       ]
     }
   },

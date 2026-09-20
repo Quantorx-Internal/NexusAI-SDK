@@ -7,20 +7,24 @@ export type AiAssistantConfig = {
   webhookUrl: string;
   /** Optional API callback URL for n8n to fetch data */
   apiCallbackUrl?: string;
-  /** OpenAI API Key for STT/TTS */
-  openaiApiKey: string;
-  /** TTS Provider: 'openai' | 'resemble' */
-  ttsProvider?: 'openai' | 'resemble';
+  /** OpenAI API Key for speech recognition */
+  openaiApiKey?: string;
+  /** Runpod API key for OmniVoice/VoxCPM synthesis */
+  runpodApiKey?: string;
+  /** Live chat defaults to OmniVoice; VoxCPM is intended for voice design. */
+  ttsEngine?: 'omnivoice' | 'voxcpm2';
+  /** OpenRouter key used to rewrite replies into natural spoken language */
+  openRouterApiKey?: string;
+  /** OpenRouter model used by the speech rewrite step */
+  ttsRewriteModel?: string;
   /** STT Provider: 'openai' | 'self-hosted' */
   sttProvider?: 'openai' | 'self-hosted';
   /** Self-hosted STT URL (if sttProvider is 'self-hosted') */
   sttSelfHostedUrl?: string;
-  /** Resemble.ai API Token (if ttsProvider is 'resemble') */
-  resembleApiToken?: string;
-  /** Resemble.ai Voice UUID for English */
-  resembleVoiceUuidEn?: string;
-  /** Resemble.ai Voice UUID for Arabic */
-  resembleVoiceUuidAr?: string;
+  /** Runpod OmniVoice endpoint ID */
+  omnivoiceEndpointId?: string;
+  /** Runpod VoxCPM endpoint ID */
+  voxcpmEndpointId?: string;
 };
 
 export type AiAssistantChatProps = {

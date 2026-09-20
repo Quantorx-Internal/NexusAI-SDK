@@ -1,5 +1,10 @@
 import { ENV } from '../config/constants';
 import * as FileSystem from 'expo-file-system/legacy';
+import NativeFormData from 'react-native/Libraries/Network/FormData';
+
+function createFormData(): any {
+    return new NativeFormData();
+}
 
 export class VoiceService {
     static async textToSpeech(text: string, locale: string = 'en'): Promise<string> {
@@ -113,7 +118,7 @@ export class VoiceService {
     }
 
     private static async transcribeWithOpenAI(audioUri: string, language: 'en' | 'ar'): Promise<string> {
-        const formData = new FormData();
+        const formData = createFormData();
         formData.append('file', {
             uri: audioUri,
             type: 'audio/mp4',
@@ -142,7 +147,7 @@ export class VoiceService {
     }
 
     private static async transcribeWithSelfHosted(audioUri: string, language: 'en' | 'ar'): Promise<string> {
-        const formData = new FormData();
+        const formData = createFormData();
         const fileExtension = audioUri.split('.').pop() || 'm4a';
         const mimeType = fileExtension === 'm4a' ? 'audio/mp4' : `audio/${fileExtension}`;
         const filename = fileExtension === 'm4a' ? 'audio.mp4' : `audio.${fileExtension}`;

@@ -1,7 +1,8 @@
 import React, { useRef, useEffect, useCallback, useMemo } from 'react';
-import { View, StyleSheet, FlatList, KeyboardAvoidingView, Platform, Text, TouchableOpacity, I18nManager } from 'react-native';
+import { View, StyleSheet, FlatList, KeyboardAvoidingView, Platform, Text, TouchableOpacity, I18nManager, Modal, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Volume2, VolumeX, Globe, Sparkles, Plus, Bot } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Volume2, VolumeX, Globe, Sparkles, Plus, Bot, Check, ChevronDown } from 'lucide-react-native';
 import { ChatMessage } from '../components/Chat/ChatMessage';
 import { ChatInput } from '../components/Chat/ChatInput';
 import { TypingIndicator } from '../components/Chat/TypingIndicator';
@@ -13,17 +14,32 @@ import { mockAccounts } from '../data/accounts';
 import { mockBills } from '../data/bills';
 import { mockCards } from '../data/cards';
 import { mockSpendingBreakdown } from '../data/spending';
+import { AGENT_VOICES, AgentVoice, AgentVoiceId, getAgentVoice } from '../../../src/config/agentVoices';
+
+const AGENT_VOICE_STORAGE_KEY = '@ai_assistant_agent_voice';
 
 export function ChatScreen() {
     const { locale, setLocale, isRTL, t } = useLocale();
     const { messages, isLoading, isTranscribing, sendMessage, handlers, isRecording, startRecording, stopRecording, resetChat } = useChatViewModel({ locale });
     const flatListRef = useRef<FlatList>(null);
-    const { speak, stop, toggle, isSpeaking, isLoading: isLoadingSpeech, currentMessageId } = useSpeech({ language: locale });
+    const [selectedVoiceId, setSelectedVoiceId] = React.useState<AgentVoiceId>('alaa-omni');
+    const selectedVoice = useMemo(() => getAgentVoice(selectedVoiceId), [selectedVoiceId]);
+    const { speak, stop, toggle, isSpeaking, isLoading: isLoadingSpeech, currentMessageId } = useSpeech({ language: locale, agentVoiceId: selectedVoiceId });
     const [autoSpeak, setAutoSpeak] = React.useState(true);
+    const [isVoicePickerOpen, setIsVoicePickerOpen] = React.useState(false);
     const lastMessageIdRef = useRef<string | null>(null);
     const prevLocaleRef = useRef(locale);
     const speechTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const hasSpokenWelcomeRef = useRef(false);
+
+    useEffect(() => {
+        AsyncStorage.getItem(AGENT_VOICE_STORAGE_KEY)
+            .then((savedVoiceId) => {
+                const savedVoice = getAgentVoice(savedVoiceId || undefined);
+                setSelectedVoiceId(savedVoice.id);
+            })
+            .catch((error) => console.warn('Failed to load selected agent voice:', error));
+    }, []);
 
     // Compute welcome summary from mock data
     const welcomeSummary = useMemo<WelcomeSummary>(() => {
@@ -40,6 +56,13 @@ export function ChatScreen() {
             activeCards,
         };
     }, []);
+
+    const getWelcomeSpeechText = useCallback(() => {
+        const clientName = locale === 'ar' ? 'محمد' : 'Mohammed';
+        const greeting = locale === 'ar' ? `هلا ${clientName}` : `Hello, ${clientName}!`;
+        const subGreeting = locale === 'ar' ? 'كيف اقدر افيدك اليوم ؟' : 'How can I help you today?';
+        return `${greeting} ${subGreeting}`;
+    }, [locale]);
 
     // Helper to cancel any pending speech timeout
     const cancelPendingSpeech = useCallback(() => {
@@ -80,19 +103,14 @@ export function ChatScreen() {
 
         hasSpokenWelcomeRef.current = true;
 
-        const clientName = locale === 'ar' ? 'محمد' : 'Mohammed';
-        const greeting = locale === 'ar' ? `هلا ${clientName}` : `Hello, ${clientName}!`;
-        const subGreeting = locale === 'ar' ? 'كيف اقدر افيدك اليوم ؟' : 'How can I help you today?';
-        const fullGreeting = `${greeting} ${subGreeting}`;
-
         cancelPendingSpeech();
         stop();
 
         speechTimeoutRef.current = setTimeout(() => {
             speechTimeoutRef.current = null;
-            speak(fullGreeting, 'welcome-speech');
+            speak(getWelcomeSpeechText(), 'welcome-speech');
         }, 800);
-    }, [messages, autoSpeak, speak, stop, cancelPendingSpeech, locale]);
+    }, [messages, autoSpeak, speak, stop, cancelPendingSpeech, getWelcomeSpeechText]);
 
     // Auto-speak new assistant messages
     useEffect(() => {
@@ -152,6 +170,19 @@ export function ChatScreen() {
         setLocale(newLocale);
     };
 
+    const handleVoiceSelect = (voice: AgentVoice) => {
+        setSelectedVoiceId(voice.id);
+        AsyncStorage.setItem(AGENT_VOICE_STORAGE_KEY, voice.id)
+            .catch((error) => console.warn('Failed to save selected agent voice:', error));
+        setIsVoicePickerOpen(false);
+        hasSpokenWelcomeRef.current = true;
+        cancelPendingSpeech();
+        stop();
+        speak(getWelcomeSpeechText(), `voice-preview-${voice.id}`, {
+            agentVoiceId: voice.id,
+        });
+    };
+
     const handleNewSession = () => {
         stopAllSpeech();
         hasSpokenWelcomeRef.current = false;
@@ -209,6 +240,18 @@ export function ChatScreen() {
                         <Plus size={20} color="#111827" />
                     </TouchableOpacity>
 
+                    {locale === 'ar' && (
+                        <TouchableOpacity
+                            style={[styles.voiceButton, isLayoutRTL && styles.headerButtonRTL]}
+                            onPress={() => setIsVoicePickerOpen(true)}
+                            activeOpacity={0.72}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                            <Text style={styles.voiceButtonText}>{selectedVoice.nameAr}</Text>
+                            <ChevronDown size={16} color="#4F008D" />
+                        </TouchableOpacity>
+                    )}
+
                     {/* Auto-speak toggle */}
                     <TouchableOpacity
                         style={[styles.headerIconButton, autoSpeak && styles.autoSpeakButtonActive]}
@@ -231,6 +274,46 @@ export function ChatScreen() {
                     </TouchableOpacity>
                 </View>
             </View>
+
+            <Modal
+                visible={locale === 'ar' && isVoicePickerOpen}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setIsVoicePickerOpen(false)}
+            >
+                <Pressable style={styles.modalBackdrop} onPress={() => setIsVoicePickerOpen(false)}>
+                    <Pressable style={styles.voiceSheet}>
+                        <Text style={[styles.voiceSheetTitle, isRTL && styles.textRTL]}>
+                            {locale === 'ar' ? 'اختر صوت المساعد' : 'Select agent voice'}
+                        </Text>
+                        {AGENT_VOICES.map((voice) => {
+                            const isSelected = voice.id === selectedVoiceId;
+                            return (
+                                <TouchableOpacity
+                                    key={voice.id}
+                                    style={[styles.voiceOption, isSelected && styles.voiceOptionSelected, isLayoutRTL && styles.voiceOptionRTL]}
+                                    onPress={() => handleVoiceSelect(voice)}
+                                >
+                                    <View style={[styles.voiceOptionAvatar, isSelected && styles.voiceOptionAvatarSelected]}>
+                                        <Bot size={18} color={isSelected ? '#fff' : '#4F008D'} />
+                                    </View>
+                                    <View style={styles.voiceOptionTextWrap}>
+                                        <Text style={[styles.voiceOptionName, isRTL && styles.textRTL]}>
+                                            {locale === 'ar' ? voice.nameAr : voice.name}
+                                        </Text>
+                                        <Text style={[styles.voiceOptionMeta, isRTL && styles.textRTL]}>
+                                            {voice.sex === 'female'
+                                                ? (locale === 'ar' ? 'صوت نسائي' : 'Female voice')
+                                                : (locale === 'ar' ? 'صوت رجالي' : 'Male voice')}
+                                        </Text>
+                                    </View>
+                                    {isSelected && <Check size={18} color="#4F008D" />}
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </Pressable>
+                </Pressable>
+            </Modal>
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -359,10 +442,90 @@ const styles = StyleSheet.create({
     autoSpeakButtonActive: {
         backgroundColor: 'rgba(79, 0, 141, 0.1)',
     },
+    voiceButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: 58,
+        minHeight: 34,
+        maxWidth: 110,
+        paddingVertical: 6,
+        paddingHorizontal: 8,
+        borderRadius: 20,
+        gap: 4,
+        backgroundColor: 'rgba(79, 0, 141, 0.08)',
+    },
+    voiceButtonText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#4F008D',
+    },
     languageText: {
         fontSize: 11,
         fontWeight: '600',
         color: '#4F008D',
+    },
+    modalBackdrop: {
+        flex: 1,
+        justifyContent: 'flex-start',
+        paddingTop: 86,
+        paddingHorizontal: 16,
+        backgroundColor: 'rgba(17, 24, 39, 0.18)',
+    },
+    voiceSheet: {
+        borderRadius: 8,
+        padding: 12,
+        backgroundColor: '#fff',
+        shadowColor: '#000',
+        shadowOpacity: 0.12,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 8 },
+        elevation: 8,
+    },
+    voiceSheetTitle: {
+        paddingHorizontal: 4,
+        paddingBottom: 8,
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#111827',
+    },
+    voiceOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingVertical: 10,
+        paddingHorizontal: 8,
+        borderRadius: 8,
+    },
+    voiceOptionRTL: {
+        flexDirection: 'row-reverse',
+    },
+    voiceOptionSelected: {
+        backgroundColor: 'rgba(79, 0, 141, 0.08)',
+    },
+    voiceOptionAvatar: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(79, 0, 141, 0.1)',
+    },
+    voiceOptionAvatarSelected: {
+        backgroundColor: '#4F008D',
+    },
+    voiceOptionTextWrap: {
+        flex: 1,
+    },
+    voiceOptionName: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#111827',
+    },
+    voiceOptionMeta: {
+        marginTop: 2,
+        fontSize: 12,
+        color: '#6B7280',
     },
     keyboardView: {
         flex: 1,

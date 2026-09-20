@@ -12,7 +12,21 @@ export type { Locale } from './contexts/LocaleContext';
 // Services
 export { ChatService } from './services/ChatService';
 export { VoiceService } from './services/VoiceService';
+export type {
+    SpeechAudioChunk,
+    SpeechSynthesisBatch,
+    TextToSpeechOptions,
+} from './services/VoiceService';
+export { SpeechTextService } from './services/SpeechTextService';
+export type {
+    PreparedSpeech,
+    PrepareSpeechOptions,
+    SpeechSpeakerSex,
+    TtsEngine,
+} from './services/SpeechTextService';
 export { AppResetManager, CleanupPriority } from './services/AppResetManager';
+export { AGENT_VOICES, getAgentVoice } from './config/agentVoices';
+export type { AgentVoice, AgentVoiceId } from './config/agentVoices';
 
 // Hooks
 export { useSpeech } from './hooks/useSpeech';

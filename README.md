@@ -71,40 +71,22 @@ npx expo install expo-av expo-file-system react-native-safe-area-context @react-
 
 ## Environment Configuration
 
-Edit:
+The example app reads the integration values from `example/.env.local`. To use
+the supplied local credentials:
 
-```
-src/config/constants.ts
-```
-
-```ts
-export const ENV = {
-  // Backend
-  N8N_WEBHOOK_URL: 'https://your-n8n-server/webhook/chat',
-  API_CALLBACK_URL: 'https://your-api.com',
-  NGROK_URL: 'https://ungravelly-lydia-thornily.ngrok-free.dev',
-
-  // NGROK_URL Locations:
-  example\.env
-  example\src\config\constants.ts
-  src\config\constants.ts
-  
-  // OpenAI
-  OPENAI_API_KEY: 'sk-xxxxxxxx',
-
-  // Speech to Text
-  STT_PROVIDER: 'openai', // or 'self-hosted'
-  STT_SELF_HOSTED_URL: 'http://localhost:8000',
-
-  // Text to Speech
-  TTS_PROVIDER: 'resemble', // or 'openai'
-  RESEMBLE_API_TOKEN: 'your-resemble-token',
-  RESEMBLE_VOICE_UUID_AR: 'arabic-voice-id',
-  RESEMBLE_VOICE_UUID_EN: 'english-voice-id',
-};
+```bash
+cp updates/env.local example/.env.local
 ```
 
-> ⚠️ Do not commit API keys.
+The Runpod integration uses asynchronous `/run` jobs with polling. OmniVoice is
+the default live-chat engine; VoxCPM remains available through `VoiceService`.
+Before synthesis, replies are redacted, rewritten for spoken Najdi Arabic,
+stripped of markup and bracketed tags, and split into balanced sentence chunks.
+
+> `example/.env.local` is ignored by Git. The example exposes these values to
+> the native runtime for local development. In a production app, keep Runpod
+> and OpenRouter keys on your server and proxy these requests instead of
+> shipping credentials in a mobile bundle.
 
 ---
 

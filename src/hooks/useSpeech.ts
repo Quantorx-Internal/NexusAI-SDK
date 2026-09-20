@@ -1,14 +1,20 @@
-import { useCallback, useRef, useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Audio } from 'expo-av';
 import { VoiceService } from '../services/VoiceService';
 import { AppResetManager, CleanupPriority } from '../services/AppResetManager';
+import type { AgentVoiceId } from '../config/agentVoices';
 
 interface UseSpeechOptions {
     language?: string;
+    agentVoiceId?: AgentVoiceId;
+}
+
+interface SpeakOptions {
+    agentVoiceId?: AgentVoiceId;
 }
 
 interface UseSpeechReturn {
-    speak: (text: string, messageId: string) => Promise<void>;
+    speak: (text: string, messageId: string, options?: SpeakOptions) => Promise<void>;
     stop: () => void;
     toggle: (text: string, messageId: string) => void;
     isSpeaking: boolean;
@@ -17,64 +23,56 @@ interface UseSpeechReturn {
     dispose: () => Promise<void>;
 }
 
-// Detect if text is primarily Arabic
 function isArabicText(text: string): boolean {
-    const arabicPattern = /[\u0600-\u06FF\u0750-\u077F]/g;
-    const arabicChars = text.match(arabicPattern) || [];
-    const latinPattern = /[a-zA-Z]/g;
-    const latinChars = text.match(latinPattern) || [];
+    const arabicChars = text.match(/[\u0600-\u06FF\u0750-\u077F]/g) || [];
+    const latinChars = text.match(/[a-zA-Z]/g) || [];
     return arabicChars.length > latinChars.length;
 }
 
-// Instance counter for unique IDs
 let instanceCounter = 0;
 
 export function useSpeech(options: UseSpeechOptions = {}): UseSpeechReturn {
-    const { language: defaultLanguage = 'en' } = options;
+    const { language: defaultLanguage = 'en', agentVoiceId } = options;
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [currentMessageId, setCurrentMessageId] = useState<string | null>(null);
     const soundRef = useRef<Audio.Sound | null>(null);
-    const isStoppingRef = useRef(false);
+    const playbackDoneRef = useRef<(() => void) | null>(null);
+    const controllerRef = useRef<AbortController | null>(null);
+    const runIdRef = useRef(0);
     const isDisposedRef = useRef(false);
+    const languageRef = useRef(defaultLanguage);
+    const agentVoiceIdRef = useRef(agentVoiceId);
     const instanceIdRef = useRef(`speech-${++instanceCounter}`);
 
-    // Use ref to always have access to current language
-    const languageRef = useRef(defaultLanguage);
+    const stop = useCallback(() => {
+        console.log(`[useSpeech:${instanceIdRef.current}] Stopping speech`);
+        runIdRef.current += 1;
+        controllerRef.current?.abort();
+        controllerRef.current = null;
+        playbackDoneRef.current?.();
+        playbackDoneRef.current = null;
 
-    /**
-     * Fully dispose of all audio resources
-     * This is the key method for preventing overlapping audio
-     */
-    const dispose = useCallback(async () => {
-        console.log(`[useSpeech:${instanceIdRef.current}] Disposing audio resources...`);
-
-        isDisposedRef.current = true;
-        isStoppingRef.current = true;
-
-        if (soundRef.current) {
-            try {
-                // First stop playback
-                await soundRef.current.stopAsync().catch(() => { });
-                // Then unload the sound completely
-                await soundRef.current.unloadAsync().catch(() => { });
-            } catch (error) {
-                console.warn(`[useSpeech:${instanceIdRef.current}] Error during dispose:`, error);
-            } finally {
-                soundRef.current = null;
-            }
+        const sound = soundRef.current;
+        soundRef.current = null;
+        if (sound) {
+            sound.stopAsync().catch(() => undefined);
+            sound.unloadAsync().catch(() => undefined);
         }
 
         setIsSpeaking(false);
         setIsLoading(false);
         setCurrentMessageId(null);
-
-        console.log(`[useSpeech:${instanceIdRef.current}] Audio resources disposed`);
     }, []);
 
-    // Register with AppResetManager for cleanup during language switch
+    const dispose = useCallback(async () => {
+        isDisposedRef.current = true;
+        stop();
+    }, [stop]);
+
     useEffect(() => {
         const cleanupId = `speech-cleanup-${instanceIdRef.current}`;
+        isDisposedRef.current = false;
 
         const unregister = AppResetManager.registerCleanup(
             cleanupId,
@@ -82,138 +80,139 @@ export function useSpeech(options: UseSpeechOptions = {}): UseSpeechReturn {
             CleanupPriority.AUDIO
         );
 
-        // Reset disposed state when component mounts
-        isDisposedRef.current = false;
-
         return () => {
             unregister();
-            // Also dispose when component unmounts
-            dispose();
+            void dispose();
         };
     }, [dispose]);
 
-    // Update language ref and cleanup when language changes
     useEffect(() => {
         const previousLanguage = languageRef.current;
         languageRef.current = defaultLanguage;
-
-        // If language actually changed, stop current speech
         if (previousLanguage !== defaultLanguage) {
-            console.log(`[useSpeech:${instanceIdRef.current}] Language changed from ${previousLanguage} to ${defaultLanguage}`);
-            dispose();
-            // Reset disposed flag for new language
+            stop();
             isDisposedRef.current = false;
         }
-    }, [defaultLanguage, dispose]);
+    }, [defaultLanguage, stop]);
 
-    const cleanText = (text: string): string => {
-        return text
-            .replace(/\*\*/g, '')
-            .replace(/\*/g, '')
-            .replace(/#{1,6}\s/g, '')
-            .replace(/`{1,3}/g, '')
-            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-            .replace(/•/g, '')
-            .replace(/&/g, 'and')
-            .replace(/</g, '')
-            .replace(/>/g, '')
-            .trim();
-    };
+    useEffect(() => {
+        agentVoiceIdRef.current = agentVoiceId;
+    }, [agentVoiceId]);
 
-    const stop = useCallback(() => {
-        console.log(`[useSpeech:${instanceIdRef.current}] Stopping speech`);
-
-        isStoppingRef.current = true;
-
-        if (soundRef.current) {
-            soundRef.current.stopAsync().catch(() => { });
-            soundRef.current.unloadAsync().catch(() => { });
-            soundRef.current = null;
-        }
-
-        setIsSpeaking(false);
-        setIsLoading(false);
-        setCurrentMessageId(null);
-    }, []);
-
-    const speak = useCallback(async (text: string, messageId: string) => {
-        // Don't speak if disposed
-        if (isDisposedRef.current) {
-            console.log(`[useSpeech:${instanceIdRef.current}] Cannot speak - instance disposed`);
-            return;
-        }
-
-        if (!text.trim()) return;
-
-        // Stop any current speech first
-        stop();
-        isStoppingRef.current = false;
-
-        setIsLoading(true);
-        setCurrentMessageId(messageId);
+    const playAudioChunk = useCallback(async (uri: string, runId: number): Promise<boolean> => {
+        let sound: Audio.Sound | null = null;
 
         try {
-            const cleanedText = cleanText(text);
-            const currentLanguage = languageRef.current;
-            const detectedLanguage = isArabicText(cleanedText) ? 'ar' : currentLanguage;
+            const created = await Audio.Sound.createAsync({ uri }, { shouldPlay: false });
+            sound = created.sound;
 
-            console.log(`[useSpeech:${instanceIdRef.current}] Generating TTS for language: ${detectedLanguage}`);
-
-            const audioUri = await VoiceService.textToSpeech(cleanedText, detectedLanguage);
-
-            // Check if we were stopped or disposed while waiting for TTS
-            if (isStoppingRef.current || isDisposedRef.current) {
-                console.log(`[useSpeech:${instanceIdRef.current}] Speech cancelled - stopped or disposed`);
-                return;
-            }
-
-            await Audio.setAudioModeAsync({
-                allowsRecordingIOS: false,
-                playsInSilentModeIOS: true,
-                staysActiveInBackground: false,
-            });
-
-            const { sound } = await Audio.Sound.createAsync(
-                { uri: audioUri },
-                { shouldPlay: true }
-            );
-
-            // Double-check we weren't disposed while creating sound
-            if (isDisposedRef.current || isStoppingRef.current) {
-                console.log(`[useSpeech:${instanceIdRef.current}] Disposing newly created sound - instance stopped`);
-                await sound.unloadAsync().catch(() => { });
-                return;
+            if (isDisposedRef.current || runId !== runIdRef.current) {
+                await sound.unloadAsync().catch(() => undefined);
+                return false;
             }
 
             soundRef.current = sound;
 
-            setIsLoading(false);
-            setIsSpeaking(true);
+            return await new Promise<boolean>((resolve) => {
+                let settled = false;
 
-            sound.setOnPlaybackStatusUpdate((status: any) => {
-                if (status.isLoaded && status.didJustFinish) {
-                    setIsSpeaking(false);
-                    setCurrentMessageId(null);
-                    sound.unloadAsync().catch(() => { });
-                    if (soundRef.current === sound) {
-                        soundRef.current = null;
+                const finish = (played: boolean) => {
+                    if (settled) return;
+                    settled = true;
+                    playbackDoneRef.current = null;
+                    if (soundRef.current === sound) soundRef.current = null;
+                    sound?.unloadAsync().catch(() => undefined);
+                    resolve(played);
+                };
+
+                playbackDoneRef.current = () => finish(false);
+                sound?.setOnPlaybackStatusUpdate((status: any) => {
+                    if (status.isLoaded && status.didJustFinish) finish(true);
+                    if (!status.isLoaded && status.error) {
+                        console.warn('Skipping a TTS chunk that failed to decode:', status.error);
+                        finish(false);
                     }
-                }
+                });
+
+                sound?.playAsync().catch(error => {
+                    console.warn('Skipping a TTS chunk that failed to play:', error);
+                    finish(false);
+                });
             });
         } catch (error) {
-            console.error(`[useSpeech:${instanceIdRef.current}] Speech error:`, error);
-            setIsLoading(false);
-            setIsSpeaking(false);
-            setCurrentMessageId(null);
+            console.warn('Skipping a TTS chunk that failed to load:', error);
+            await sound?.unloadAsync().catch(() => undefined);
+            return false;
         }
-    }, [stop]);
+    }, []);
+
+    const speak = useCallback(async (text: string, messageId: string, speakOptions: SpeakOptions = {}) => {
+        if (isDisposedRef.current || !text.trim()) return;
+
+        stop();
+        const runId = runIdRef.current;
+        const controller = new AbortController();
+        controllerRef.current = controller;
+        setIsLoading(true);
+        setCurrentMessageId(messageId);
+
+        try {
+            const detectedLanguage = isArabicText(text) ? 'ar' : 'en';
+            console.log(`[useSpeech:${instanceIdRef.current}] Preparing TTS in ${detectedLanguage}`);
+
+            // All synthesis jobs start in parallel. Awaiting by index below keeps
+            // playback ordered even when later chunks finish first.
+            const batch = await VoiceService.createSpeechBatch(text, detectedLanguage, {
+                agentVoiceId: speakOptions.agentVoiceId ?? agentVoiceIdRef.current,
+                signal: controller.signal,
+            });
+
+            let playedAny = false;
+            for (const job of batch.jobs) {
+                const chunk = await job;
+                if (
+                    controller.signal.aborted
+                    || isDisposedRef.current
+                    || runId !== runIdRef.current
+                ) return;
+                if (!chunk) continue;
+
+                if (!playedAny) {
+                    await Audio.setAudioModeAsync({
+                        allowsRecordingIOS: false,
+                        playsInSilentModeIOS: true,
+                        staysActiveInBackground: false,
+                    });
+                    setIsLoading(false);
+                    setIsSpeaking(true);
+                }
+
+                const played = await playAudioChunk(chunk.uri, runId);
+                playedAny = playedAny || played;
+            }
+
+            if (runId === runIdRef.current && !isDisposedRef.current) {
+                setIsLoading(false);
+                setIsSpeaking(false);
+                setCurrentMessageId(null);
+                controllerRef.current = null;
+            }
+        } catch (error) {
+            if (!controller.signal.aborted) {
+                console.error(`[useSpeech:${instanceIdRef.current}] Speech error:`, error);
+            }
+            if (runId === runIdRef.current && !isDisposedRef.current) {
+                setIsLoading(false);
+                setIsSpeaking(false);
+                setCurrentMessageId(null);
+                controllerRef.current = null;
+            }
+        }
+    }, [playAudioChunk, stop]);
 
     const toggle = useCallback((text: string, messageId: string) => {
-        if (isSpeaking || isLoading) {
-            stop();
-        } else {
-            speak(text, messageId);
-        }
+        if (isSpeaking || isLoading) stop();
+        else void speak(text, messageId);
     }, [isSpeaking, isLoading, speak, stop]);
 
     return {
