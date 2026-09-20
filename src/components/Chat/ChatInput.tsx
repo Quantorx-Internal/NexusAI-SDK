@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, I18nManager } from 'react-native';
+import { View, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, I18nManager, Platform, NativeSyntheticEvent, TextInputKeyPressEventData } from 'react-native';
 import { Send, Mic } from 'lucide-react-native';
 import { Locale } from '../../contexts/LocaleContext';
 
@@ -38,6 +38,33 @@ export function ChatInput({
         setText('');
     };
 
+    /**
+     * Return sends the message rather than inserting a newline.
+     *
+     * Native gets this from `submitBehavior="submit"` below, which fires submit
+     * without blurring, so the keyboard stays up between messages.
+     *
+     * Web needs this handler because react-native-web ignores `submitBehavior`
+     * and only honours `blurOnSubmit` — and on a multiline field that flag also
+     * forces a blur. react-native-web runs `onKeyPress` first and then skips its
+     * own Enter handling if the event was default-prevented, so preventing it
+     * here gives us submit-without-blur there too.
+     *
+     * Shift+Enter still inserts a newline, and a Return that closes an IME
+     * composition (how Arabic, Chinese and Japanese keyboards commit a word)
+     * must not send — otherwise the message goes mid-word.
+     */
+    const handleKeyPress = (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+        if (Platform.OS !== 'web') return;
+
+        const e = event as any;
+        const composing = e?.nativeEvent?.isComposing || e?.nativeEvent?.keyCode === 229;
+        if (e?.key !== 'Enter' || e?.shiftKey || composing) return;
+
+        e.preventDefault?.();
+        handleSend();
+    };
+
     // Localized placeholder text
     const placeholder = isTranscribing
         ? (locale === 'ar' ? 'جاري التحويل...' : 'Transcribing...')
@@ -61,7 +88,10 @@ export function ChatInput({
                     value={text}
                     onChangeText={setText}
                     onSubmitEditing={handleSend}
+                    onKeyPress={handleKeyPress}
                     returnKeyType="send"
+                    // Send on Return instead of adding a newline, and keep focus.
+                    submitBehavior="submit"
                     multiline
                     editable={!isDisabled}
                     textAlign={isRTL ? 'right' : 'left'}

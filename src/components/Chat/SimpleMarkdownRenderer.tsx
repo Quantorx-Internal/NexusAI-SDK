@@ -17,7 +17,8 @@ import {
     TicketCreatedBlock,
     TransferSuccessBlock,
     RecommendationsBlock,
-    Recommendation
+    TransactionListBlock,
+    ExchangeRateBlock
 } from './blocks';
 import {
     Account,
@@ -32,19 +33,13 @@ import {
     BillPaymentSuccess,
     TicketCreated,
     CardPreview,
-    CardActionSuccess
+    CardActionSuccess,
+    TransferSuccess,
+    ProductRecommendation,
+    ProductRecommendationPayload,
+    ExchangeRate,
+    Transaction
 } from '../../types';
-
-interface TransferSuccess {
-    transactionId?: string;
-    transferId?: string;
-    amount?: number;
-    currency?: string;
-    beneficiaryName?: string;
-    fromAccountName?: string;
-    status?: string;
-    completedAt?: string;
-}
 
 interface SimpleMarkdownRendererProps {
     content: string;
@@ -62,9 +57,10 @@ interface SimpleMarkdownRendererProps {
     billPaymentPreview?: BillPaymentPreview;
     billPaymentSuccess?: BillPaymentSuccess;
     ticketCreated?: TicketCreated;
-    recommendations?: Recommendation[];
-    recommendationsIntro?: string;
-    recommendationsIntroAr?: string;
+    productRecommendation?: ProductRecommendationPayload;
+    exchangeRate?: ExchangeRate;
+    transactions?: Transaction[];
+    transactionsTitle?: string;
     locale?: 'en' | 'ar';
     onAction?: (action: string) => void;
     onAccountSelect?: (account: Account) => void;
@@ -78,8 +74,9 @@ interface SimpleMarkdownRendererProps {
     onCardActionCancel?: () => void;
     onBillPaymentConfirm?: () => void;
     onBillPaymentCancel?: () => void;
-    onRecommendationApply?: (recommendation: Recommendation) => void;
-    onRecommendationDetails?: (recommendation: Recommendation) => void;
+    onRecommendationApply?: (recommendation: ProductRecommendation) => void;
+    onRecommendationDetails?: (recommendation: ProductRecommendation) => void;
+    onTransactionSelect?: (transaction: Transaction) => void;
     isRTL?: boolean;
     isLayoutRTL?: boolean;
 }
@@ -123,9 +120,10 @@ export function SimpleMarkdownRenderer({
     billPaymentPreview,
     billPaymentSuccess,
     ticketCreated,
-    recommendations = [],
-    recommendationsIntro,
-    recommendationsIntroAr,
+    productRecommendation,
+    exchangeRate,
+    transactions = [],
+    transactionsTitle,
     locale = 'en',
     onAccountSelect,
     onBeneficiarySelect,
@@ -140,6 +138,7 @@ export function SimpleMarkdownRenderer({
     onBillPaymentCancel,
     onRecommendationApply,
     onRecommendationDetails,
+    onTransactionSelect,
     isRTL = false,
     isLayoutRTL = false,
 }: SimpleMarkdownRendererProps) {
@@ -158,7 +157,9 @@ export function SimpleMarkdownRenderer({
     const hasBillPaymentPreview = isObject(billPaymentPreview);
     const hasBillPaymentSuccess = isObject(billPaymentSuccess);
     const hasTicketCreated = isObject(ticketCreated);
-    const hasRecommendations = recommendations.length > 0;
+    const hasRecommendations = (productRecommendation?.recommendations?.length || 0) > 0;
+    const hasExchangeRate = isObject(exchangeRate) && typeof (exchangeRate as any).rate === 'number';
+    const hasTransactions = transactions.length > 0;
 
     const mkStyles = {
         ...markdownStyles,
@@ -230,17 +231,12 @@ export function SimpleMarkdownRenderer({
             ) : null}
 
             {/* Blocks */}
-            {(hasTransferPreview || hasTransferSuccess || hasAccounts || hasBeneficiaries || hasCards || hasCardPreview || hasCardActionSuccess || hasSpendingBreakdown || hasSpendingInsights || hasSubscriptions || hasBills || hasBillPaymentPreview || hasBillPaymentSuccess || hasTicketCreated || hasRecommendations) && (
+            {(hasTransferPreview || hasTransferSuccess || hasAccounts || hasBeneficiaries || hasCards || hasCardPreview || hasCardActionSuccess || hasSpendingBreakdown || hasSpendingInsights || hasSubscriptions || hasBills || hasBillPaymentPreview || hasBillPaymentSuccess || hasTicketCreated || hasRecommendations || hasTransactions || hasExchangeRate) && (
                 <View style={styles.blocksContainer}>
                     {/* Render transfer preview if present */}
                     {hasTransferPreview && transferPreview && (
                         <TransferPreviewBlock
-                            block={{
-                                id: 'transfer-preview',
-                                type: 'transfer',
-                                preview: transferPreview,
-                                rawContent: '',
-                            }}
+                            preview={transferPreview}
                             locale={locale}
                             onConfirm={onTransferConfirm}
                             onEdit={onTransferEdit}
@@ -361,12 +357,25 @@ export function SimpleMarkdownRenderer({
                         />
                     )}
 
+                    {/* Render exchange rate if present */}
+                    {hasExchangeRate && exchangeRate && (
+                        <ExchangeRateBlock rate={exchangeRate} locale={locale} />
+                    )}
+
+                    {/* Render transactions if present */}
+                    {hasTransactions && (
+                        <TransactionListBlock
+                            transactions={transactions}
+                            title={transactionsTitle}
+                            locale={locale}
+                            onSelect={onTransactionSelect}
+                        />
+                    )}
+
                     {/* Render recommendations if present */}
-                    {hasRecommendations && (
+                    {hasRecommendations && productRecommendation && (
                         <RecommendationsBlock
-                            recommendations={recommendations}
-                            introMessage={recommendationsIntro}
-                            introMessageAr={recommendationsIntroAr}
+                            payload={productRecommendation}
                             locale={locale}
                             onApply={onRecommendationApply}
                             onDetails={onRecommendationDetails}
@@ -380,7 +389,8 @@ export function SimpleMarkdownRenderer({
 
 const styles = StyleSheet.create({
     container: {
-        gap: 12,
+        // Bubble → first card.
+        gap: 8,
     },
     bubble: {
         backgroundColor: '#F3F4F6', // gray-100/secondary
@@ -396,8 +406,8 @@ const styles = StyleSheet.create({
         alignSelf: 'flex-end',
     },
     blocksContainer: {
-        gap: 16,
-        marginTop: 4,
+        // Cards inside one message sit 8 apart; 20 separates messages.
+        gap: 8,
         width: '100%',
     },
 });

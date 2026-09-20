@@ -1,152 +1,108 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { PiggyBank, Target, TrendingUp, CreditCard, CheckCircle2 } from 'lucide-react-native';
-import { Card } from '../../ui/Card';
+import { View, Text, StyleSheet } from 'react-native';
+import { Check, Sparkles } from 'lucide-react-native';
+import { Card, SectionHeader, StatusPill, IconBox, iconOn, Button } from '../../ui';
+import { color, layout, radius, size, text, iconStroke } from '../../../theme/tokens';
+import { formatCurrency } from '../../../lib/utils';
+import { Product, ProductRecommendation, ProductRecommendationPayload } from '../../../types';
+import { productVisual, categoryLabel } from './productVisuals';
 
-export interface Recommendation {
-    id: string;
-    title: string;
-    titleAr: string;
-    description: string;
-    descriptionAr: string;
-    ctaQuestion: string;
-    ctaQuestionAr: string;
-    features: string[];
-    featuresAr: string[];
-    badges: Array<{ text: string; textAr: string; variant: 'special' | 'category' }>;
-    icon: 'savings' | 'piggybank' | 'target' | 'trending' | 'creditcard';
-    actionLabel?: string;
-    actionLabelAr?: string;
-}
+export type { ProductRecommendation };
+
+/**
+ * Family D · Recommendations.
+ *
+ * Offers are not decisions. "Apply now" opens a flow; it does not move money, so
+ * it gets a 40pt button side by side with Details rather than the 44pt
+ * full-width primary reserved for Family B. That keeps the strongest button in
+ * the thread meaning exactly one thing.
+ *
+ * The design called out a missing field here: a one-line "why you" that makes an
+ * offer feel earned rather than pushed. The server sends exactly that as
+ * `reason` ("You keep 45,750 SAR in your Main Account, well above monthly
+ * spending") — it gets its own tinted block under the benefit, because it is
+ * evidence about the customer, not ad copy about the product.
+ */
 
 interface RecommendationsBlockProps {
-    recommendations: Recommendation[];
-    introMessage?: string;
-    introMessageAr?: string;
+    payload: ProductRecommendationPayload;
     locale?: 'en' | 'ar';
-    onApply?: (recommendation: Recommendation) => void;
-    onDetails?: (recommendation: Recommendation) => void;
+    onApply?: (recommendation: ProductRecommendation) => void;
+    onDetails?: (recommendation: ProductRecommendation) => void;
 }
 
-const iconMap = {
-    savings: PiggyBank,
-    piggybank: PiggyBank,
-    target: Target,
-    trending: TrendingUp,
-    creditcard: CreditCard,
-};
+const MAX_BULLETS = 3;
 
-function RecommendationCard({
-    recommendation,
-    locale = 'en',
-    onApply,
-    onDetails,
-}: {
-    recommendation: Recommendation;
-    locale?: 'en' | 'ar';
-    onApply?: (recommendation: Recommendation) => void;
-    onDetails?: (recommendation: Recommendation) => void;
-}) {
+/**
+ * Eligibility facts become the check bullets. The benefit is already the
+ * description, so it is not repeated here.
+ */
+function bulletsFor(product: Product, locale: 'en' | 'ar'): string[] {
     const isAr = locale === 'ar';
-    const title = isAr ? recommendation.titleAr : recommendation.title;
-    const description = isAr ? recommendation.descriptionAr : recommendation.description;
-    const ctaQuestion = isAr ? recommendation.ctaQuestionAr : recommendation.ctaQuestion;
-    const features = isAr ? recommendation.featuresAr : recommendation.features;
-    const actionLabel = isAr ? (recommendation.actionLabelAr || 'تقديم الآن') : (recommendation.actionLabel || 'Apply Now');
-    const detailsLabel = isAr ? 'التفاصيل' : 'Details';
+    const bullets: string[] = [];
 
-    const IconComponent = iconMap[recommendation.icon] || PiggyBank;
+    const note = isAr ? product.eligibilityNoteAr : product.eligibilityNote;
+    if (note) bullets.push(note);
 
-    return (
-        <Card style={styles.recommendationCard}>
-            <View style={styles.cardHeader}>
-                <View style={styles.iconContainer}>
-                    <IconComponent size={20} color="#4F008D" />
-                </View>
-                <View style={styles.headerContent}>
-                    <Text style={styles.cardTitle}>{title}</Text>
-                    <View style={styles.badgesRow}>
-                        {recommendation.badges.map((badge, index) => (
-                            <View
-                                key={index}
-                                style={[
-                                    styles.badge,
-                                    badge.variant === 'special' ? styles.specialBadge : styles.categoryBadge
-                                ]}
-                            >
-                                <Text style={[
-                                    styles.badgeText,
-                                    badge.variant === 'special' ? styles.specialBadgeText : styles.categoryBadgeText
-                                ]}>
-                                    {isAr ? badge.textAr : badge.text}
-                                </Text>
-                            </View>
-                        ))}
-                    </View>
-                </View>
-            </View>
+    if (product.minAmount != null) {
+        bullets.push(
+            isAr
+                ? `الحد الأدنى ${formatCurrency(product.minAmount, 'SAR', locale)}`
+                : `From ${formatCurrency(product.minAmount, 'SAR', locale)}`
+        );
+    }
+    if (product.maxAmount != null) {
+        bullets.push(
+            isAr
+                ? `حتى ${formatCurrency(product.maxAmount, 'SAR', locale)}`
+                : `Up to ${formatCurrency(product.maxAmount, 'SAR', locale)}`
+        );
+    }
+    if (product.minSalary != null) {
+        bullets.push(
+            isAr
+                ? `راتب من ${formatCurrency(product.minSalary, 'SAR', locale)}`
+                : `Salary from ${formatCurrency(product.minSalary, 'SAR', locale)}`
+        );
+    }
 
-            <Text style={styles.description}>{description}</Text>
-
-            <View style={styles.featuresContainer}>
-                {features.map((feature, index) => (
-                    <View key={index} style={styles.featureRow}>
-                        <CheckCircle2 size={14} color="#00C58D" />
-                        <Text style={styles.featureText}>{feature}</Text>
-                    </View>
-                ))}
-            </View>
-
-            <Text style={styles.ctaQuestion}>{ctaQuestion}</Text>
-
-            <View style={styles.actionsRow}>
-                <TouchableOpacity
-                    style={styles.applyButton}
-                    onPress={() => onApply?.(recommendation)}
-                    activeOpacity={0.7}
-                >
-                    <Text style={styles.applyButtonText}>{actionLabel}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={styles.detailsButton}
-                    onPress={() => onDetails?.(recommendation)}
-                    activeOpacity={0.7}
-                >
-                    <Text style={styles.detailsButtonText}>{detailsLabel}</Text>
-                </TouchableOpacity>
-            </View>
-        </Card>
-    );
+    return bullets.slice(0, MAX_BULLETS);
 }
 
 export function RecommendationsBlock({
-    recommendations,
-    introMessage,
-    introMessageAr,
+    payload,
     locale = 'en',
     onApply,
     onDetails,
 }: RecommendationsBlockProps) {
+    const recommendations = payload?.recommendations || [];
     if (recommendations.length === 0) return null;
 
     const isAr = locale === 'ar';
-    const title = isAr ? '✨ قد يهمك' : '✨ You might be interested';
-    const intro = isAr ? introMessageAr : introMessage;
+    const intro = isAr
+        ? payload.contextMessageAr || payload.contextMessage
+        : payload.contextMessage;
 
     return (
-        <View style={styles.container}>
-            <Text style={styles.sectionTitle}>{title}</Text>
+        <View>
+            {intro ? (
+                <Text style={[text('body', { color: color.text.secondary }), styles.intro]}>
+                    {intro}
+                </Text>
+            ) : null}
 
-            {intro && (
-                <Text style={styles.introText}>{intro}</Text>
-            )}
+            <SectionHeader
+                title={isAr ? 'مقترحة لك' : 'Recommended for you'}
+                count={recommendations.length}
+            />
 
-            <View style={styles.recommendationsList}>
-                {recommendations.map((rec) => (
-                    <RecommendationCard
-                        key={rec.id}
-                        recommendation={rec}
+            <View style={styles.stack}>
+                {recommendations.map(recommendation => (
+                    <OfferCard
+                        key={recommendation.product.id}
+                        recommendation={recommendation}
                         locale={locale}
+                        showApply={payload.showApplyButton !== false}
                         onApply={onApply}
                         onDetails={onDetails}
                     />
@@ -156,139 +112,135 @@ export function RecommendationsBlock({
     );
 }
 
+function OfferCard({
+    recommendation,
+    locale,
+    showApply,
+    onApply,
+    onDetails,
+}: {
+    recommendation: ProductRecommendation;
+    locale: 'en' | 'ar';
+    showApply: boolean;
+    onApply?: (recommendation: ProductRecommendation) => void;
+    onDetails?: (recommendation: ProductRecommendation) => void;
+}) {
+    const isAr = locale === 'ar';
+    const { product } = recommendation;
+
+    const title = (isAr ? product.nameAr : product.name) || product.name;
+    const benefit = isAr ? product.benefitAr : product.benefit;
+    const reason = isAr ? recommendation.reasonAr : recommendation.reason;
+    const bullets = bulletsFor(product, locale);
+    const { Icon, tone } = productVisual(product);
+
+    const applyLabel = isAr ? 'قدّم الآن' : 'Apply now';
+    const detailsLabel = isAr ? 'التفاصيل' : 'Details';
+
+    return (
+        <Card variant="info">
+            <View style={styles.headerRow}>
+                <IconBox box={size.iconBox.lg} tone={tone}>
+                    <Icon size={size.icon.lg} color={iconOn(tone)} strokeWidth={iconStroke} />
+                </IconBox>
+                <View style={styles.headerText}>
+                    <Text style={text('cardTitle')} numberOfLines={2}>
+                        {title}
+                    </Text>
+                    <View style={styles.badges}>
+                        {product.isPromoted && (
+                            <StatusPill
+                                label={isAr ? 'عرض خاص' : 'Special offer'}
+                                tone="brandTint"
+                                icon={
+                                    <Sparkles
+                                        size={11}
+                                        color={color.brand[600]}
+                                        strokeWidth={iconStroke}
+                                    />
+                                }
+                            />
+                        )}
+                        <StatusPill
+                            label={categoryLabel(product.category, locale)}
+                            tone="neutralTint"
+                        />
+                    </View>
+                </View>
+            </View>
+
+            {benefit ? (
+                <Text style={[text('body', { color: color.text.secondary }), styles.benefit]}>
+                    {benefit}
+                </Text>
+            ) : null}
+
+            {/* The "why you". Evidence about this customer, so it sits in its own
+                block rather than reading as more product copy. */}
+            {reason ? (
+                <View style={styles.reason}>
+                    <Text style={text('caption', { color: color.text.secondary })}>{reason}</Text>
+                </View>
+            ) : null}
+
+            {bullets.length > 0 ? (
+                <View style={styles.features}>
+                    {bullets.map((bullet, index) => (
+                        <View key={index} style={styles.feature}>
+                            <Check
+                                size={size.icon.xs}
+                                color={color.success.fg}
+                                strokeWidth={iconStroke}
+                            />
+                            <Text style={[text('body'), styles.featureText]}>{bullet}</Text>
+                        </View>
+                    ))}
+                </View>
+            ) : null}
+
+            {(onDetails || (showApply && onApply)) && (
+                <View style={styles.actions}>
+                    {onDetails && (
+                        <Button
+                            label={detailsLabel}
+                            kind="secondary"
+                            onPress={() => onDetails(recommendation)}
+                            style={styles.action}
+                        />
+                    )}
+                    {showApply && onApply && (
+                        <Button
+                            label={applyLabel}
+                            kind="primary"
+                            onPress={() => onApply(recommendation)}
+                            style={styles.action}
+                        />
+                    )}
+                </View>
+            )}
+        </Card>
+    );
+}
+
 const styles = StyleSheet.create({
-    container: {
-        marginTop: 16,
-        marginBottom: 8,
+    intro: { marginBottom: 8 },
+    stack: { gap: layout.cardStackGap },
+    headerRow: { flexDirection: 'row', gap: layout.rowGap, marginBottom: layout.rowGap },
+    headerText: { flex: 1, gap: 6 },
+    badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    benefit: { marginBottom: layout.rowGap },
+    reason: {
+        backgroundColor: color.surface2,
+        borderRadius: radius.inner,
+        padding: layout.rowGap,
+        marginBottom: layout.rowGap,
     },
-    sectionTitle: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 8,
-    },
-    introText: {
-        fontSize: 13,
-        color: '#6B7280',
-        marginBottom: 12,
-        lineHeight: 18,
-    },
-    recommendationsList: {
-        gap: 12,
-    },
-    recommendationCard: {
-        padding: 16,
-        marginBottom: 0,
-    },
-    cardHeader: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: 12,
-        marginBottom: 12,
-    },
-    iconContainer: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(79, 0, 141, 0.1)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    headerContent: {
-        flex: 1,
-    },
-    cardTitle: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 6,
-    },
-    badgesRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 6,
-    },
-    badge: {
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 4,
-    },
-    specialBadge: {
-        backgroundColor: 'rgba(234, 88, 12, 0.1)',
-        borderWidth: 1,
-        borderColor: 'rgba(234, 88, 12, 0.3)',
-    },
-    categoryBadge: {
-        backgroundColor: 'rgba(79, 0, 141, 0.1)',
-        borderWidth: 1,
-        borderColor: 'rgba(79, 0, 141, 0.3)',
-    },
-    specialBadgeText: {
-        fontSize: 10,
-        fontWeight: '500',
-        color: '#ea580c',
-    },
-    categoryBadgeText: {
-        fontSize: 10,
-        fontWeight: '500',
-        color: '#4F008D',
-    },
-    badgeText: {
-        fontSize: 10,
-        fontWeight: '500',
-    },
-    description: {
-        fontSize: 13,
-        color: '#6B7280',
-        lineHeight: 18,
-        marginBottom: 12,
-    },
-    featuresContainer: {
-        gap: 6,
-        marginBottom: 12,
-    },
-    featureRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    featureText: {
-        fontSize: 12,
-        color: '#00C58D',
-    },
-    ctaQuestion: {
-        fontSize: 13,
-        fontWeight: '500',
-        color: '#4F008D',
-        marginBottom: 12,
-    },
-    actionsRow: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    applyButton: {
-        flex: 1,
-        backgroundColor: '#4F008D',
-        paddingVertical: 12,
-        borderRadius: 8,
-        alignItems: 'center',
-    },
-    applyButtonText: {
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    detailsButton: {
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#e5e7eb',
-        alignItems: 'center',
-    },
-    detailsButtonText: {
-        color: '#6B7280',
-        fontSize: 14,
-        fontWeight: '500',
-    },
+    features: { gap: 6, marginBottom: layout.rowGap },
+    feature: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+    featureText: { flex: 1 },
+    actions: { flexDirection: 'row', gap: 8 },
+    // Offers use the 40pt height, not the 44pt Family B primary.
+    action: { flex: 1, height: size.buttonSecondary },
 });
+
+export default RecommendationsBlock;

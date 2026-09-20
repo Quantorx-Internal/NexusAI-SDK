@@ -1,303 +1,252 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Wallet, Building2, ArrowRight } from 'lucide-react-native';
-import { Card } from '../../ui/Card';
-import { formatCurrency } from '../../../lib/utils';
+import { View, Text, StyleSheet } from 'react-native';
+import { Wallet, ArrowDown } from 'lucide-react-native';
+import { Card, DetailRow, ActionRow, StatusPill, IconBox, iconOn } from '../../ui';
+import { color, layout, radius, size, text, iconStroke } from '../../../theme/tokens';
+import { formatCurrency, initials } from '../../../lib/utils';
 import { TransferPreview } from '../../../types';
 
-interface TransferBlockData {
-    id: string;
-    type: 'transfer';
-    preview: TransferPreview;
-    rawContent: string;
-}
+/**
+ * Family B · TransferPreview — the reference decision card.
+ *
+ * Signal: 1.5px brand border, brand pill, primary button. This is the only card
+ * type that carries both a hero amount and buttons.
+ *
+ * Hierarchy: amount → who/where → terms → total → actions. The converted amount
+ * sits directly under the hero as a caption, so the user sees what the recipient
+ * actually gets before reading the terms.
+ */
 
 interface TransferPreviewBlockProps {
-    block: TransferBlockData;
+    preview: TransferPreview;
     locale?: 'en' | 'ar';
     onConfirm?: () => void;
     onEdit?: () => void;
     onCancel?: () => void;
+    /** Replaces the whole action row once the transfer is authorized. */
+    confirmedLabel?: string;
+    working?: boolean;
 }
 
+const purposeLabels: Record<string, Record<string, string>> = {
+    en: {
+        family_support: 'Family support',
+        salary: 'Salary',
+        investment: 'Investment',
+        education: 'Education',
+        medical: 'Medical',
+        business: 'Business',
+        other: 'Other',
+    },
+    ar: {
+        family_support: 'إعالة الأسرة',
+        salary: 'راتب',
+        investment: 'استثمار',
+        education: 'تعليم',
+        medical: 'طبي',
+        business: 'أعمال',
+        other: 'أخرى',
+    },
+};
+
 export function TransferPreviewBlock({
-    block,
+    preview,
     locale = 'en',
     onConfirm,
     onEdit,
-    onCancel
+    onCancel,
+    confirmedLabel,
+    working,
 }: TransferPreviewBlockProps) {
-    const { preview } = block;
-
-    const purposeLabels: Record<string, Record<string, string>> = {
-        en: {
-            family_support: 'Family Support',
-            salary: 'Salary',
-            investment: 'Investment',
-            education: 'Education',
-            medical: 'Medical',
-            business: 'Business',
-            other: 'Other',
-        },
-        ar: {
-            family_support: 'دعم عائلي',
-            salary: 'راتب',
-            investment: 'استثمار',
-            education: 'تعليم',
-            medical: 'طبي',
-            business: 'أعمال',
-            other: 'أخرى',
-        },
-    };
+    const isAr = locale === 'ar';
 
     const t = {
-        title: locale === 'ar' ? 'ملخص التحويل' : 'Transfer Summary',
-        pending: locale === 'ar' ? 'قيد الانتظار' : 'Pending',
-        from: locale === 'ar' ? 'من' : 'From',
-        to: locale === 'ar' ? 'إلى' : 'To',
-        amount: locale === 'ar' ? 'المبلغ' : 'Amount',
-        type: locale === 'ar' ? 'النوع' : 'Type',
-        exchangeRate: locale === 'ar' ? 'سعر الصرف' : 'Exchange Rate',
-        convertedAmount: locale === 'ar' ? 'المبلغ المحول' : 'Converted Amount',
-        fees: locale === 'ar' ? 'الرسوم' : 'Fees',
-        purpose: locale === 'ar' ? 'الغرض' : 'Purpose',
-        total: locale === 'ar' ? 'الإجمالي' : 'Total',
-        cancel: locale === 'ar' ? 'إلغاء' : 'Cancel',
-        edit: locale === 'ar' ? 'تعديل' : 'Edit',
-        confirm: locale === 'ar' ? 'تأكيد' : 'Confirm',
-        account: locale === 'ar' ? 'حساب' : 'Account',
-        beneficiary: locale === 'ar' ? 'مستفيد' : 'Beneficiary',
+        title: isAr ? 'مراجعة التحويل' : 'Review transfer',
+        awaiting: isAr ? 'بانتظار التأكيد' : 'Awaiting confirmation',
+        confirmed: isAr ? 'تم التأكيد' : 'Confirmed',
+        amount: isAr ? 'المبلغ' : 'Amount',
+        receives: isAr ? 'يستلم المستفيد' : 'Recipient receives',
+        from: isAr ? 'من' : 'From',
+        to: isAr ? 'إلى' : 'To',
+        type: isAr ? 'نوع التحويل' : 'Transfer type',
+        national: isAr ? 'محلي' : 'National',
+        international: isAr ? 'دولي' : 'International',
+        rate: isAr ? 'سعر الصرف' : 'Exchange rate',
+        fee: isAr ? 'الرسوم' : 'Fee',
+        purpose: isAr ? 'الغرض' : 'Purpose',
+        total: isAr ? 'إجمالي المبلغ المخصوم' : 'Total debited',
+        confirm: isAr ? 'تأكيد التحويل' : 'Confirm transfer',
+        edit: isAr ? 'تعديل' : 'Edit',
+        cancel: isAr ? 'إلغاء' : 'Cancel',
+        account: isAr ? 'حساب' : 'Account',
+        beneficiary: isAr ? 'مستفيد' : 'Beneficiary',
     };
 
+    const fromName =
+        preview.fromAccountName ||
+        (preview.fromAccountId ? `${t.account} ${preview.fromAccountId.slice(-4)}` : t.account);
+    const toName =
+        preview.beneficiaryName ||
+        (preview.beneficiaryId ? `${t.beneficiary} ${preview.beneficiaryId.slice(-4)}` : t.beneficiary);
+
+    // The destination currency is only known when the payload carries it; without
+    // it we fall back to the SAR-settlement reading the API has always used.
+    const destCurrency = preview.convertedCurrency;
+    const isInternational = preview.type === 'international';
+    const total = preview.totalAmount ?? preview.amount + (preview.fees || 0);
+    // A confirmed card stops asking for a decision: neutral border, success pill.
+    const done = Boolean(confirmedLabel);
+
     return (
-        <View>
-            <Card variant="gradient" style={styles.cardPadding}>
-                <View style={styles.header}>
-                    <Text style={styles.headerTitle}>{t.title}</Text>
-                    <View style={styles.badge}>
-                        <Text style={styles.badgeText}>{t.pending}</Text>
-                    </View>
-                </View>
+        <Card variant={done ? 'info' : 'decision'}>
+            <View style={styles.header}>
+                <Text style={text('cardTitle')} numberOfLines={1}>
+                    {t.title}
+                </Text>
+                <StatusPill
+                    label={done ? t.confirmed : t.awaiting}
+                    tone={done ? 'success' : 'brandTint'}
+                    dot={!done}
+                />
+            </View>
 
-                {/* Transfer flow visualization */}
-                <View style={styles.flowContainer}>
-                    <View style={styles.flowItem}>
-                        <View style={styles.iconCircle}>
-                            <Wallet size={20} color="#fff" />
-                        </View>
-                        <View style={styles.flowTextContainer}>
-                            <Text style={styles.flowLabel}>{t.from}</Text>
-                            <Text style={styles.flowValue} numberOfLines={1}>
-                                {preview.fromAccountName || (preview.fromAccountId ? `${t.account} ${preview.fromAccountId.slice(-4)}` : t.account)}
-                            </Text>
-                        </View>
-                    </View>
+            {/* Amount — hero, with what the recipient gets directly beneath it. */}
+            <View style={styles.hero}>
+                <Text style={text('caption')}>{t.amount}</Text>
+                <Text style={[text('hero'), styles.tabular]} numberOfLines={1} adjustsFontSizeToFit>
+                    {formatCurrency(preview.amount, preview.currency, locale)}
+                </Text>
+                {preview.convertedAmount ? (
+                    <Text style={text('caption')} numberOfLines={1}>
+                        {t.receives}{' '}
+                        {formatCurrency(preview.convertedAmount, destCurrency || 'SAR', locale)}
+                    </Text>
+                ) : null}
+            </View>
 
-                    <ArrowRight size={20} color="rgba(255,255,255,0.6)" />
-
-                    <View style={styles.flowItem}>
-                        <View style={styles.iconCircle}>
-                            <Building2 size={20} color="#fff" />
-                        </View>
-                        <View style={styles.flowTextContainer}>
-                            <Text style={styles.flowLabel}>{t.to}</Text>
-                            <Text style={styles.flowValue} numberOfLines={1}>
-                                {preview.beneficiaryName || (preview.beneficiaryId ? `${t.beneficiary} ${preview.beneficiaryId.slice(-4)}` : t.beneficiary)}
-                            </Text>
-                        </View>
-                    </View>
-                </View>
-
-                {/* Amount details */}
-                <View style={styles.detailsContainer}>
-                    <DetailRow label={t.amount} value={formatCurrency(preview.amount, preview.currency, locale)} />
-
-                    {preview.type && (
-                        <DetailRow label={t.type} value={preview.type} capitalize />
-                    )}
-
-                    {preview.exchangeRate && (
-                        <DetailRow label={t.exchangeRate} value={`1 ${preview.currency} = ${preview.exchangeRate.toFixed(4)} SAR`} />
-                    )}
-
-                    {preview.convertedAmount && (
-                        <DetailRow label={t.convertedAmount} value={formatCurrency(preview.convertedAmount, 'SAR', locale)} />
-                    )}
-
-                    {preview.fees !== undefined && (
-                        <DetailRow label={t.fees} value={formatCurrency(preview.fees, preview.currency, locale)} />
-                    )}
-
-                    {preview.purpose && (
-                        <DetailRow label={t.purpose} value={purposeLabels[locale][preview.purpose] || preview.purpose} />
-                    )}
-
-                    <View style={styles.totalRow}>
-                        <Text style={styles.totalLabel}>{t.total}</Text>
-                        <Text style={styles.totalValue}>
-                            {formatCurrency(preview.totalAmount || preview.amount + (preview.fees || 0), preview.currency, locale)}
+            {/* Who / where. Vertical with a down arrow so the flow reads the same
+                in both directions — a horizontal arrow would have to mirror. */}
+            <View style={styles.flow}>
+                <View style={styles.flowRow}>
+                    <IconBox box={size.iconBox.sm} tone="brandTint">
+                        <Wallet
+                            size={size.icon.sm}
+                            color={iconOn('brandTint')}
+                            strokeWidth={iconStroke}
+                        />
+                    </IconBox>
+                    <View style={styles.flowText}>
+                        <Text style={text('caption')}>{t.from}</Text>
+                        <Text style={text('rowValue')} numberOfLines={1}>
+                            {fromName}
                         </Text>
                     </View>
                 </View>
 
-                {/* Action buttons */}
-                {(onConfirm || onEdit || onCancel) && (
-                    <View style={styles.actionsContainer}>
-                        {onCancel && (
-                            <TouchableOpacity style={styles.ghostButton} onPress={onCancel}>
-                                <Text style={styles.ghostButtonText}>{t.cancel}</Text>
-                            </TouchableOpacity>
-                        )}
-                        {onEdit && (
-                            <TouchableOpacity style={styles.ghostButton} onPress={onEdit}>
-                                <Text style={styles.ghostButtonText}>{t.edit}</Text>
-                            </TouchableOpacity>
-                        )}
-                        {onConfirm && (
-                            <TouchableOpacity style={styles.primaryButton} onPress={onConfirm}>
-                                <Text style={styles.primaryButtonText}>{t.confirm}</Text>
-                            </TouchableOpacity>
-                        )}
+                <View style={styles.arrowRail}>
+                    <ArrowDown
+                        size={size.icon.sm}
+                        color={color.text.tertiary}
+                        strokeWidth={iconStroke}
+                    />
+                    <View style={styles.divider} />
+                </View>
+
+                <View style={styles.flowRow}>
+                    <View style={styles.avatar}>
+                        <Text style={text('caption', { color: color.text.inverse, fontWeight: '700' })}>
+                            {initials(toName)}
+                        </Text>
                     </View>
-                )}
-            </Card>
-        </View>
+                    <View style={styles.flowText}>
+                        <Text style={text('caption')}>{t.to}</Text>
+                        <Text style={text('rowValue')} numberOfLines={2}>
+                            {toName}
+                            {preview.beneficiaryBank ? (
+                                <Text style={text('caption')}> · {preview.beneficiaryBank}</Text>
+                            ) : null}
+                        </Text>
+                    </View>
+                </View>
+            </View>
+
+            {/* Terms */}
+            <View style={styles.terms}>
+                {preview.type ? (
+                    <DetailRow label={t.type} value={isInternational ? t.international : t.national} />
+                ) : null}
+
+                {preview.exchangeRate ? (
+                    <DetailRow
+                        label={t.rate}
+                        value={`1 ${preview.currency} = ${preview.exchangeRate.toFixed(2)} ${destCurrency || 'SAR'}`}
+                    />
+                ) : null}
+
+                {preview.fees !== undefined ? (
+                    <DetailRow
+                        label={t.fee}
+                        value={formatCurrency(preview.fees, preview.currency, locale)}
+                    />
+                ) : null}
+
+                {preview.purpose ? (
+                    <DetailRow
+                        label={t.purpose}
+                        value={purposeLabels[locale]?.[preview.purpose] || preview.purpose}
+                    />
+                ) : null}
+
+                <DetailRow
+                    label={t.total}
+                    value={formatCurrency(total, preview.currency, locale)}
+                    total
+                />
+            </View>
+
+            <ActionRow
+                primaryLabel={onConfirm ? t.confirm : undefined}
+                onPrimary={onConfirm}
+                secondaryLabel={onEdit ? t.edit : undefined}
+                onSecondary={onEdit}
+                ghostLabel={onCancel ? t.cancel : undefined}
+                onGhost={onCancel}
+                working={working}
+                confirmedLabel={confirmedLabel}
+            />
+        </Card>
     );
 }
 
-const DetailRow = ({ label, value, capitalize }: { label: string, value: string, capitalize?: boolean }) => (
-    <View style={styles.detailRow}>
-        <Text style={styles.detailLabel}>{label}</Text>
-        <Text style={[styles.detailValue, capitalize && styles.capitalize]}>{value}</Text>
-    </View>
-);
-
 const styles = StyleSheet.create({
-    cardPadding: {
-        padding: 20,
-    },
     header: {
         flexDirection: 'row',
+        alignItems: 'center',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: '#fff',
-    },
-    badge: {
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 8,
-    },
-    badgeText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: '500',
-    },
-    flowContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        marginBottom: 20,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        padding: 12,
-        borderRadius: 12,
-    },
-    flowItem: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
         gap: 8,
+        marginBottom: layout.sectionGap,
     },
-    iconCircle: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.2)',
+    hero: { marginBottom: layout.sectionGap },
+    tabular: { fontVariant: ['tabular-nums'] },
+    flow: {
+        backgroundColor: color.surface2,
+        borderRadius: radius.inner,
+        padding: layout.rowGap,
+        marginBottom: layout.sectionGap,
+    },
+    flowRow: { flexDirection: 'row', alignItems: 'center', gap: layout.rowGap },
+    flowText: { flex: 1 },
+    arrowRail: { flexDirection: 'row', alignItems: 'center', gap: layout.rowGap, paddingVertical: 4 },
+    divider: { flex: 1, height: 1, backgroundColor: color.border },
+    avatar: {
+        width: size.iconBox.sm,
+        height: size.iconBox.sm,
+        borderRadius: radius.avatar,
+        backgroundColor: color.brand[600],
         alignItems: 'center',
         justifyContent: 'center',
     },
-    flowTextContainer: {
-        flex: 1,
-    },
-    flowLabel: {
-        fontSize: 10,
-        color: 'rgba(255,255,255,0.7)',
-    },
-    flowValue: {
-        fontSize: 13,
-        fontWeight: '500',
-        color: '#fff',
-    },
-    detailsContainer: {
-        gap: 8,
-        marginBottom: 20,
-    },
-    detailRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-    },
-    detailLabel: {
-        fontSize: 14,
-        color: 'rgba(255,255,255,0.8)',
-    },
-    detailValue: {
-        fontSize: 14,
-        fontWeight: '500',
-        color: '#fff',
-    },
-    capitalize: {
-        textTransform: 'capitalize',
-    },
-    totalRow: {
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255,255,255,0.2)',
-        paddingTop: 12,
-        marginTop: 8,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    totalLabel: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#fff',
-    },
-    totalValue: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#fff',
-    },
-    actionsContainer: {
-        flexDirection: 'row',
-        gap: 8,
-    },
-    ghostButton: {
-        flex: 1,
-        paddingVertical: 10,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        borderRadius: 8,
-        alignItems: 'center',
-    },
-    ghostButtonText: {
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: '500',
-    },
-    primaryButton: {
-        flex: 1,
-        paddingVertical: 10,
-        backgroundColor: '#fff',
-        borderRadius: 8,
-        alignItems: 'center',
-    },
-    primaryButtonText: {
-        color: '#4F008D', // Primary color
-        fontSize: 14,
-        fontWeight: '600',
-    },
+    terms: { gap: layout.rowGap, marginBottom: layout.sectionGap },
 });
+
+export default TransferPreviewBlock;

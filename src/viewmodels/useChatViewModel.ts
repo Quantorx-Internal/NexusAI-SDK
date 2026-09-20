@@ -3,6 +3,7 @@ import { ChatMessage, Account } from '../types';
 import { ChatService } from '../services/ChatService';
 import { VoiceService } from '../services/VoiceService';
 import { Audio } from 'expo-av';
+import { Platform } from 'react-native';
 import { Locale } from '../contexts/LocaleContext';
 import { AppResetManager, CleanupPriority } from '../services/AppResetManager';
 
@@ -12,6 +13,23 @@ interface UseChatViewModelOptions {
 
 // Instance counter for unique IDs
 let instanceCounter = 0;
+
+/**
+ * End-of-speech detection.
+ *
+ * Only possible on iOS/Android — expo-av reports `metering` on those platforms
+ * only — so the explicit control in listening mode is never optional.
+ *
+ * The windows are deliberately forgiving. People hesitate inside the values that
+ * matter most here ("send five hundred… to… Ahmed"), and clipping the amount or
+ * the payee is far worse than waiting an extra beat.
+ */
+/** Above this dBFS counts as speech rather than room tone. */
+const SPEECH_DB = -40;
+/** Sustained silence before the take is closed automatically. */
+const SILENCE_MS = 1800;
+/** Floor so a stray quiet moment at the start can never end the take. */
+const MIN_RECORDING_MS = 1000;
 
 export function useChatViewModel(options: UseChatViewModelOptions = {}) {
     const { locale = 'en' } = options;
@@ -27,6 +45,15 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
     // Recording state
     const recordingRef = useRef<Audio.Recording | null>(null);
     const [isRecording, setIsRecording] = useState(false);
+    /** Input level 0-1, from the recorder's metering callback. */
+    const [level, setLevel] = useState(0);
+    /** 0-1 progress towards auto-stop, so the UI can show it coming. */
+    const [silenceProgress, setSilenceProgress] = useState(0);
+    const silenceSinceRef = useRef<number | null>(null);
+    const recordingStartedAtRef = useRef<number | null>(null);
+    // Lets the metering callback reach the latest stopRecording, which is
+    // defined further down.
+    const stopRecordingRef = useRef<(() => void) | null>(null);
     const isStartingRef = useRef(false);
 
     /**
@@ -46,6 +73,10 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
         }
 
         setIsRecording(false);
+        setLevel(0);
+        setSilenceProgress(0);
+        silenceSinceRef.current = null;
+        recordingStartedAtRef.current = null;
         isStartingRef.current = false;
 
         console.log(`[useChatViewModel:${instanceIdRef.current}] Recording resources disposed`);
@@ -155,9 +186,8 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
                 spendingBreakdown: response.spendingBreakdown,
                 subscriptions: response.subscriptions,
                 spendingInsights: response.spendingInsights,
-                recommendations: response.recommendations,
-                recommendationsIntro: response.recommendationsIntro,
-                recommendationsIntroAr: response.recommendationsIntroAr,
+                transactions: response.transactions,
+                transactionSummary: response.transactionSummary,
             };
 
             setMessages(prev => [...prev, botMsg]);
@@ -211,8 +241,39 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
                 playsInSilentModeIOS: true,
             });
 
+            // Metering drives the listening waveform. `metering` is dBFS
+            // (roughly -160 silent to 0 clipping); -60 up is the useful band.
             const { recording } = await Audio.Recording.createAsync(
-                Audio.RecordingOptionsPresets.HIGH_QUALITY
+                { ...Audio.RecordingOptionsPresets.HIGH_QUALITY, isMeteringEnabled: true },
+                status => {
+                    // `metering` (like `isRecording`) is iOS/Android only, so on
+                    // web this never fires with a level. The waveform animates on
+                    // its own and treats this as amplitude when it does arrive.
+                    const db = (status as any).metering;
+                    if (typeof db !== 'number') return;
+                    setLevel(Math.max(0, Math.min(1, (db + 60) / 60)));
+
+                    if (Platform.OS === 'web') return;
+
+                    const now = Date.now();
+                    if (db > SPEECH_DB) {
+                        silenceSinceRef.current = null;
+                        setSilenceProgress(0);
+                        return;
+                    }
+
+                    if (silenceSinceRef.current === null) silenceSinceRef.current = now;
+                    const startedAt = recordingStartedAtRef.current ?? now;
+                    if (now - startedAt < MIN_RECORDING_MS) return;
+
+                    const quietFor = now - silenceSinceRef.current;
+                    setSilenceProgress(Math.min(1, quietFor / SILENCE_MS));
+                    if (quietFor >= SILENCE_MS) {
+                        silenceSinceRef.current = null;
+                        stopRecordingRef.current?.();
+                    }
+                },
+                100
             );
 
             // Check if disposed while setting up
@@ -222,11 +283,35 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
             }
 
             recordingRef.current = recording;
+            recordingStartedAtRef.current = Date.now();
+            silenceSinceRef.current = null;
+            setSilenceProgress(0);
             setIsRecording(true);
         } catch (err) {
             console.error('Failed to start recording:', err);
         } finally {
             isStartingRef.current = false;
+        }
+    }, []);
+
+    /**
+     * Cancel discards the recording without transcribing — the X in listening
+     * mode must not send anything.
+     */
+    const cancelRecording = useCallback(async () => {
+        const recording = recordingRef.current;
+        recordingRef.current = null;
+        setIsRecording(false);
+        setLevel(0);
+        setSilenceProgress(0);
+        silenceSinceRef.current = null;
+        recordingStartedAtRef.current = null;
+        if (!recording) return;
+        try {
+            await recording.stopAndUnloadAsync();
+            await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+        } catch (error) {
+            console.warn('Error cancelling recording:', error);
         }
     }, []);
 
@@ -237,6 +322,10 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
             const recording = recordingRef.current;
             recordingRef.current = null;
             setIsRecording(false);
+            setLevel(0);
+            setSilenceProgress(0);
+            silenceSinceRef.current = null;
+            recordingStartedAtRef.current = null;
 
             await recording.stopAndUnloadAsync();
             await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
@@ -270,6 +359,19 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
                     }
                 } catch (error) {
                     console.error('Voice processing error:', error);
+                    // A failed transcription used to end in silence — the overlay
+                    // closed and nothing happened, which reads as the mic being
+                    // broken. Say so, and point at the way out.
+                    if (!isDisposedRef.current) {
+                        setMessages(prev => [...prev, {
+                            id: `voice-error-${Date.now()}`,
+                            role: 'assistant',
+                            content: locale === 'ar'
+                                ? 'لم أتمكن من سماع ذلك. حاول مرة أخرى أو اكتب رسالتك.'
+                                : "I couldn't hear that. Try again, or type your message instead.",
+                            timestamp: new Date().toISOString(),
+                        }]);
+                    }
                 } finally {
                     if (!isDisposedRef.current) {
                         setIsTranscribing(false);
@@ -281,7 +383,12 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
             recordingRef.current = null;
             setIsRecording(false);
         }
-    }, [sendMessage]);
+    }, [sendMessage, locale]);
+
+    // The metering callback fires before stopRecording exists in scope.
+    useEffect(() => {
+        stopRecordingRef.current = stopRecording;
+    }, [stopRecording]);
 
     return {
         messages,
@@ -290,8 +397,11 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
         sendMessage,
         resetChat,
         isRecording,
+        level,
+        silenceProgress,
         startRecording,
         stopRecording,
+        cancelRecording,
         handlers: {
             onAction: handleAction,
             onAccountSelect: handleAccountSelect,
@@ -309,13 +419,15 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
             onBillPaymentCancel: () => sendMessage("Cancel the bill payment"),
             // Recommendation handlers
             onRecommendationApply: (rec: any) => {
-                const title = locale === 'ar' ? rec.titleAr : rec.title;
-                sendMessage(`I want to apply for ${title}`);
+                const name = locale === 'ar' ? rec?.product?.nameAr : rec?.product?.name;
+                sendMessage(`I want to apply for ${name || rec?.product?.name}`);
             },
             onRecommendationDetails: (rec: any) => {
-                const title = locale === 'ar' ? rec.titleAr : rec.title;
-                sendMessage(`Tell me more about ${title}`);
+                const name = locale === 'ar' ? rec?.product?.nameAr : rec?.product?.name;
+                sendMessage(`Tell me more about ${name || rec?.product?.name}`);
             },
+            onTransactionSelect: (tx: any) =>
+                sendMessage(`Tell me more about the ${tx.merchantName} transaction`),
         }
     };
 }
