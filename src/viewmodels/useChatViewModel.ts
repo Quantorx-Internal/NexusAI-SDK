@@ -188,6 +188,7 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
                 spendingInsights: response.spendingInsights,
                 transactions: response.transactions,
                 transactionSummary: response.transactionSummary,
+                transactionsUnavailable: response.transactionsUnavailable,
             };
 
             setMessages(prev => [...prev, botMsg]);

@@ -36,6 +36,9 @@ export const color = {
     borderBrand: '#B98ADB',
     /** The one dark surface in the system — bank cards only. */
     ink: '#1A1523',
+    /** Endpoints of the instrument gradients (design §A). */
+    ink900: '#0F0C14',
+    aubergine: '#3A2A4E',
     text: {
         primary: '#1A1523',
         secondary: '#5B5468',
@@ -170,6 +173,60 @@ export const composer = {
         stop: 14,
         stopRadius: 3,
     },
+} as const;
+
+/**
+ * Instruments — accounts and bank cards (design §A, round 2).
+ *
+ * The one place a gradient survives. Everywhere else purple is confined to
+ * buttons, pills, avatars and the selected border; here the object itself is
+ * the brand surface, because an account and a card ARE physical things.
+ */
+export const instrument = {
+    width: 272,
+    accountHeight: 168,
+    cardHeight: 172,
+    radius: 20,
+    padding: 18,
+    /** Between cards in the scroller. */
+    gap: 10,
+    /** The next card is always at least this visible. */
+    peek: 40,
+    ringWidth: 2,
+    ringOffset: 3,
+    iconSquare: 36,
+    iconRadius: 12,
+    balanceSize: 26,
+    balanceLine: 32,
+    decimalsSize: 17,
+    numberSize: 17,
+    /** .16em at 17pt. */
+    numberTracking: 17 * 0.16,
+    pillHeight: 22,
+    dot: 5,
+    dotActiveWidth: 16,
+    dotGap: 6,
+    /** Pressed instruments scale down rather than dimming. */
+    pressedScale: 0.97,
+    /** A frozen card reads as switched off. */
+    frozenOpacity: 0.92,
+    /**
+     * Two palettes by type, both expo-linear-gradient at 135°.
+     * current / credit take the brand ramp; savings / debit take ink.
+     */
+    palettes: {
+        brand: [color.brand[800], color.brand[600], color.brand[500]],
+        ink: [color.ink900, color.aubergine],
+    },
+    /** Frosted containers on the gradient. */
+    frostFill: 'rgba(255,255,255,0.14)',
+    frostBorder: 'rgba(255,255,255,0.18)',
+    pillFill: 'rgba(255,255,255,0.16)',
+    /** One translucent deco shape per palette, 6–7% white for depth. */
+    decoOpacity: 0.065,
+    /** 70% white = 6.1:1 on brand-600 and 9:1 on ink. */
+    onSurface: 'rgba(255,255,255,0.7)',
+    onSurfaceStrong: '#FFFFFF',
 } as const;
 
 /** Icons are lucide-react-native at strokeWidth 2. */

@@ -15,7 +15,11 @@ export class TransactionService {
     ): Promise<TransactionListResult | null> {
         const base = ENV.API_CALLBACK_URL;
         if (!base) {
-            console.warn('TransactionService: API_CALLBACK_URL is not configured');
+            console.error(
+                'TransactionService: EXPO_PUBLIC_API_CALLBACK_URL is not set. ' +
+                'It is inlined at build time, so a bundle built without it can ' +
+                'never resolve transactions.'
+            );
             return null;
         }
 
@@ -45,7 +49,9 @@ export class TransactionService {
         try {
             const response = await fetch(url);
             if (!response.ok) {
-                console.error('TransactionService: API error', response.status);
+                console.error(
+                    `TransactionService: ${response.status} from ${url}`
+                );
                 return null;
             }
 

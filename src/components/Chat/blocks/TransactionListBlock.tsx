@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { ArrowUpRight, ArrowDownLeft } from 'lucide-react-native';
-import { Card, SectionHeader, StatusPill, IconBox, iconOn, RowDivider } from '../../ui';
+import { Card, SectionHeader, StatusPill, IconBox, iconOn, RowDivider, EmptyState } from '../../ui';
 import { color, layout, radius, size, text, iconStroke } from '../../../theme/tokens';
 import { formatCurrency, formatTime } from '../../../lib/utils';
 import { Transaction } from '../../../types';
@@ -29,6 +29,8 @@ interface TransactionListBlockProps {
     title?: string;
     locale?: 'en' | 'ar';
     onSelect?: (transaction: Transaction) => void;
+    /** The list was promised by the assistant but could not be fetched. */
+    unavailable?: boolean;
 }
 
 function startOfDay(value: string | Date) {
@@ -62,9 +64,25 @@ export function TransactionListBlock({
     title,
     locale = 'en',
     onSelect,
+    unavailable,
 }: TransactionListBlockProps) {
-    if (!transactions || transactions.length === 0) return null;
     const isAr = locale === 'ar';
+    const empty = !transactions || transactions.length === 0;
+
+    // Say the list is missing rather than rendering nothing under a reply that
+    // refers to it — silence is indistinguishable from the feature not existing.
+    if (empty) {
+        if (!unavailable) return null;
+        return (
+            <View>
+                <SectionHeader title={title || (isAr ? 'آخر المعاملات' : 'Recent transactions')} />
+                <EmptyState
+                    title={isAr ? 'تعذّر تحميل المعاملات' : "Couldn't load transactions"}
+                    note={isAr ? 'تحقق من اتصالك وحاول مرة أخرى.' : 'Check your connection and try again.'}
+                />
+            </View>
+        );
+    }
 
     const t = {
         title: title || (isAr ? 'آخر المعاملات' : 'Recent transactions'),

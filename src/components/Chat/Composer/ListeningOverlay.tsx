@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, Animated, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowUp, X, Pencil } from 'lucide-react-native';
-import { color, composer, radius, iconStroke, font } from '../../../theme/tokens';
+import * as tokens from '../../../theme/tokens';
 import { Waveform } from './Waveform';
 
 /**
@@ -44,7 +44,7 @@ export function ListeningOverlay({
     onEditAsText,
 }: ListeningOverlayProps) {
     const isAr = locale === 'ar';
-    const ring = useRef(new Animated.Value(composer.listening.ring)).current;
+    const ring = useRef(new Animated.Value(tokens.composer.listening.ring)).current;
     const fade = useRef(new Animated.Value(0)).current;
 
     // The ring breathes 6→10pt so the mode reads as live even in silence.
@@ -59,7 +59,7 @@ export function ListeningOverlay({
         loop.start();
         return () => {
             loop.stop();
-            ring.setValue(composer.listening.ring);
+            ring.setValue(tokens.composer.listening.ring);
         };
     }, [visible, ring]);
 
@@ -75,7 +75,7 @@ export function ListeningOverlay({
 
     if (!visible) return null;
 
-    const height = Dimensions.get('window').height * composer.listening.scrimRatio;
+    const height = Dimensions.get('window').height * tokens.composer.listening.scrimRatio;
     const t = {
         listening: isAr ? 'أستمع…' : 'Listening…',
         cancel: isAr ? 'إلغاء' : 'Cancel',
@@ -127,7 +127,7 @@ export function ListeningOverlay({
                         accessibilityLabel={t.cancel}
                         style={({ pressed }) => [styles.side, pressed && styles.sidePressed]}
                     >
-                        <X size={20} color={color.brand[700]} strokeWidth={iconStroke} />
+                        <X size={20} color={tokens.color.brand[700]} strokeWidth={tokens.iconStroke} />
                     </Pressable>
 
                     <Pressable onPress={onStop} accessibilityLabel={t.send}>
@@ -135,8 +135,8 @@ export function ListeningOverlay({
                             <View style={styles.mic}>
                                 <ArrowUp
                                     size={28}
-                                    color={color.text.inverse}
-                                    strokeWidth={iconStroke}
+                                    color={tokens.color.text.inverse}
+                                    strokeWidth={tokens.iconStroke}
                                 />
                             </View>
                         </Animated.View>
@@ -147,7 +147,7 @@ export function ListeningOverlay({
                         accessibilityLabel={t.edit}
                         style={({ pressed }) => [styles.side, pressed && styles.sidePressed]}
                     >
-                        <Pencil size={18} color={color.brand[700]} strokeWidth={iconStroke} />
+                        <Pencil size={18} color={tokens.color.brand[700]} strokeWidth={tokens.iconStroke} />
                     </Pressable>
                 </View>
             </View>
@@ -159,22 +159,22 @@ const styles = StyleSheet.create({
     root: { position: 'absolute', left: 0, right: 0, bottom: 0, justifyContent: 'flex-end' },
     content: { paddingHorizontal: 24, paddingBottom: 28, gap: 20 },
     transcript: {
-        fontSize: composer.listening.transcriptSize,
-        lineHeight: composer.listening.transcriptLine,
+        fontSize: tokens.composer.listening.transcriptSize,
+        lineHeight: tokens.composer.listening.transcriptLine,
         fontWeight: '600',
-        fontFamily: font.family,
-        color: color.text.primary,
+        fontFamily: tokens.font.family,
+        color: tokens.color.text.primary,
         textAlign: 'center',
     },
-    partial: { color: color.text.tertiary, fontWeight: '600' },
+    partial: { color: tokens.color.text.tertiary, fontWeight: '600' },
     waveform: { alignItems: 'center' },
     hintBlock: { alignItems: 'center', gap: 8, marginTop: -8 },
     hint: {
         fontSize: 13,
         lineHeight: 18,
         fontWeight: '600',
-        fontFamily: font.family,
-        color: color.brand[700],
+        fontFamily: tokens.font.family,
+        color: tokens.color.brand[700],
         opacity: 0.75,
     },
     progressTrack: {
@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.55)',
         overflow: 'hidden',
     },
-    progressFill: { height: '100%', backgroundColor: color.brand[600] },
+    progressFill: { height: '100%', backgroundColor: tokens.color.brand[600] },
     controls: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -192,25 +192,25 @@ const styles = StyleSheet.create({
         gap: 28,
     },
     side: {
-        width: composer.listening.sideButton,
-        height: composer.listening.sideButton,
-        borderRadius: composer.listening.sideButton / 2,
+        width: tokens.composer.listening.sideButton,
+        height: tokens.composer.listening.sideButton,
+        borderRadius: tokens.composer.listening.sideButton / 2,
         borderWidth: 1,
-        borderColor: color.brand[300],
+        borderColor: tokens.color.brand[300],
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: 'rgba(255,255,255,0.6)',
     },
-    sidePressed: { backgroundColor: color.surface },
+    sidePressed: { backgroundColor: tokens.color.surface },
     micRing: {
-        borderRadius: radius.pill,
-        backgroundColor: color.brand[200],
+        borderRadius: tokens.radius.pill,
+        backgroundColor: tokens.color.brand[200],
     },
     mic: {
-        width: composer.listening.mic,
-        height: composer.listening.mic,
-        borderRadius: composer.listening.mic / 2,
-        backgroundColor: color.brand[600],
+        width: tokens.composer.listening.mic,
+        height: tokens.composer.listening.mic,
+        borderRadius: tokens.composer.listening.mic / 2,
+        backgroundColor: tokens.color.brand[600],
         alignItems: 'center',
         justifyContent: 'center',
     },

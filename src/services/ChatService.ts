@@ -1004,6 +1004,11 @@ async function attachMockData(parsed: any): Promise<any> {
                 totalOut: resolved.totalOut,
                 currency: resolved.currency,
             };
+        } else {
+            // The assistant promised a list it could not fetch. Rendering
+            // nothing leaves the reply referring to a card that isn't there,
+            // which is indistinguishable from the feature being missing.
+            result.transactionsUnavailable = true;
         }
     }
     // NOTE: there is deliberately no mock-recommendation injection here.

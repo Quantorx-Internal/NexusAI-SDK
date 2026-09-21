@@ -104,6 +104,8 @@ export interface ChatMessage {
     // Resolved transaction rows for ui.transactionList
     transactions?: Transaction[];
     transactionSummary?: { count: number; totalIn: number; totalOut: number; currency: string };
+    /** ui.transactionList was sent but could not be resolved. */
+    transactionsUnavailable?: boolean;
 }
 
 // Recommendation type for personalized offers

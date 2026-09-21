@@ -233,6 +233,7 @@ export function ChatMessage({
                             exchangeRate={exchangeRate}
                             transactions={transactions}
                             transactionsTitle={transactionsTitle}
+                            transactionsUnavailable={message.transactionsUnavailable}
                             locale={locale}
                             onAction={onAction}
                             onAccountSelect={onAccountSelect}

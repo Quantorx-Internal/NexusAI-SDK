@@ -61,6 +61,7 @@ interface SimpleMarkdownRendererProps {
     exchangeRate?: ExchangeRate;
     transactions?: Transaction[];
     transactionsTitle?: string;
+    transactionsUnavailable?: boolean;
     locale?: 'en' | 'ar';
     onAction?: (action: string) => void;
     onAccountSelect?: (account: Account) => void;
@@ -124,6 +125,7 @@ export function SimpleMarkdownRenderer({
     exchangeRate,
     transactions = [],
     transactionsTitle,
+    transactionsUnavailable,
     locale = 'en',
     onAccountSelect,
     onBeneficiarySelect,
@@ -159,7 +161,7 @@ export function SimpleMarkdownRenderer({
     const hasTicketCreated = isObject(ticketCreated);
     const hasRecommendations = (productRecommendation?.recommendations?.length || 0) > 0;
     const hasExchangeRate = isObject(exchangeRate) && typeof (exchangeRate as any).rate === 'number';
-    const hasTransactions = transactions.length > 0;
+    const hasTransactions = transactions.length > 0 || Boolean(transactionsUnavailable);
 
     const mkStyles = {
         ...markdownStyles,
@@ -258,6 +260,7 @@ export function SimpleMarkdownRenderer({
                             accounts={accounts}
                             locale={locale}
                             onSelect={onAccountSelect}
+                            isRTL={isRTL}
                         />
                     )}
 
@@ -276,6 +279,7 @@ export function SimpleMarkdownRenderer({
                             cards={cards}
                             locale={locale}
                             onSelect={onCardSelect}
+                            isRTL={isRTL}
                         />
                     )}
 
@@ -369,6 +373,7 @@ export function SimpleMarkdownRenderer({
                             title={transactionsTitle}
                             locale={locale}
                             onSelect={onTransactionSelect}
+                            unavailable={transactionsUnavailable}
                         />
                     )}
 

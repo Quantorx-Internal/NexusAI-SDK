@@ -51,7 +51,11 @@
     "expo-file-system": "*",
     "lucide-react-native": "*",
     "react-native": "*",
-    "react-native-safe-area-context": "*"
+    "react-native-safe-area-context": "*",
+    "expo-linear-gradient": "*",
+    "expo-clipboard": "*",
+    "react-native-svg": "*",
+    "react-native-markdown-display": "*"
   },
   "peerDependenciesMeta": {
     "lucide-react-native": {
@@ -71,6 +75,7 @@
     "react-dom": "^19.1.0",
     "react-native": "*",
     "react-native-markdown-display": "^7.0.2",
-    "react-native-safe-area-context": "*"
+    "react-native-safe-area-context": "*",
+    "react-native-svg": "*"
   }
 }

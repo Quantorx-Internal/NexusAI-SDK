@@ -9,3 +9,6 @@ export { ProportionBar, StackedBar, RampKey, rampAt, RAMP } from './ProportionBa
 export { SectionHeader, EmptyState, SkeletonRows } from './SectionHeader';
 export { ResultBand, ResultBody } from './ResultBand';
 export { RowDivider } from './RowDivider';
+export { InstrumentSurface } from './InstrumentSurface';
+export type { InstrumentPalette } from './InstrumentSurface';
+export { PageDots } from './PageDots';
