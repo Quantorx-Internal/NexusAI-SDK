@@ -44,7 +44,12 @@ export class TransactionService {
             }
         });
 
-        const url = `${base.replace(/\/$/, '')}/api/transactions?${params.toString()}`;
+        // The base may or may not already end in /api: constants.ts resolves
+        // API_CALLBACK_URL from NEXT_PUBLIC_API_URL / EXPO_PUBLIC_API_URL (which
+        // include it) before falling back to EXPO_PUBLIC_API_CALLBACK_URL (which
+        // does not). Appending blindly produced /api/api/transactions → 404.
+        const root = base.replace(/\/+$/, '').replace(/\/api$/i, '');
+        const url = `${root}/api/transactions?${params.toString()}`;
 
         try {
             const response = await fetch(url);
