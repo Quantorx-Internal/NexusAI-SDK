@@ -967,7 +967,7 @@ function getMockLoanResponse(message: string, sessionId: string, locale: string,
     // The user tapped a loan in the list: open its card.
     if (event?.type === 'action' && event.card === 'loanOptions') {
         const offer = loanOffer(event.id);
-        if (offer) return reply(cardIntro(offer), { loanOffer: offer });
+        if (offer) return reply(cardIntro(offer), { loanOffer: { ...offer, offline: true } });
         const product = findLoanProduct(event.id);
         const name = product ? (isAr ? product.nameAr : product.name) || product.name : event.id;
         return reply(
@@ -989,7 +989,7 @@ function getMockLoanResponse(message: string, sessionId: string, locale: string,
     // A loan named, or a purpose: its card. "Which loans can I get?": the list.
     if (productId && (!asksForList || amountIn(message))) {
         const offer = loanOffer(productId, amountIn(message), monthsIn(message));
-        if (offer) return reply(cardIntro(offer), { loanOffer: offer });
+        if (offer) return reply(cardIntro(offer), { loanOffer: { ...offer, offline: true } });
     }
 
     const options = demoLoanOptions();

@@ -118,7 +118,9 @@ export class LoanAdvisorService {
     static async remark(query: AdvisorQuery, signal?: AbortSignal): Promise<AdvisorRemark | null> {
         if (!query.offer.budget) return null;
 
-        const fromApi = await LoanAdvisorService.fromApi(query, signal);
+        // An offline card was priced from the demo month; the server's advisor
+        // would weigh it against a different one and contradict the bar.
+        const fromApi = query.offer.offline ? null : await LoanAdvisorService.fromApi(query, signal);
         if (fromApi) return fromApi;
         if (signal?.aborted) return null;
 

@@ -565,6 +565,12 @@ export interface LoanOfferUI {
     amount: number;
     months: number;
     budget?: LoanBudget | null;
+    /**
+     * Priced by the app, not the server. The server's advisor weighs a plan
+     * against its own session's month, which would contradict this card's
+     * bar, so an offline card never asks it.
+     */
+    offline?: boolean;
 }
 
 /** Words the app wrote, in both languages, so the card shows the user's. */
