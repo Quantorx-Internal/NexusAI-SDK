@@ -6,7 +6,7 @@ import type { AdjusterTick } from '../../ui';
 import { color, layout, loan, radius, size, text, iconStroke } from '../../../theme/tokens';
 import { adviseLoan, quoteLoan, rateLabel, tenureLabel } from '../../../lib/loans';
 import { ChatResolution, LoanOfferUI, LoanTerms } from '../../../types';
-import { LOAN_WORDS, LoanLocale, compact, money, plain, splitPlain, stamp } from './loanWords';
+import { CURRENCY_WORD, LOAN_WORDS, LoanLocale, compact, money, splitPlain, stamp } from './loanWords';
 
 /**
  * Family B · LoanPlan — a decision the user is about to submit (design §5b, §5c).
@@ -171,12 +171,12 @@ export function LoanPlanBlock({
             {/* The number the user is shaping. */}
             <View style={[styles.hero, dim]}>
                 <Text style={text('caption')}>{words.monthly}</Text>
-                <Text style={styles.heroLine} numberOfLines={1} adjustsFontSizeToFit>
+                <Text numberOfLines={1} adjustsFontSizeToFit>
                     <Text style={[text('hero'), styles.tabular]}>{hero.head}</Text>
                     <Text style={[text('hero', { fontSize: loan.heroDecimals, color: color.text.secondary }), styles.tabular]}>
                         {hero.decimals}
                     </Text>
-                    <Text style={text('caption')}>{` ${money(0, locale).replace(/^0 /, '')}`}</Text>
+                    <Text style={text('caption')}>{` ${CURRENCY_WORD[locale]}`}</Text>
                 </Text>
                 <Text style={[text('caption'), styles.tabular]} numberOfLines={1}>
                     {money(shown.amount, locale)} · {tenure(shown.months)}
@@ -281,7 +281,6 @@ const styles = StyleSheet.create({
         marginBottom: layout.sectionGap,
     },
     hero: { gap: 2 },
-    heroLine: { flexDirection: 'row' },
     tabular: { fontVariant: ['tabular-nums'] },
     section: { marginTop: layout.sectionGap },
     adjusters: { gap: layout.sectionGap },

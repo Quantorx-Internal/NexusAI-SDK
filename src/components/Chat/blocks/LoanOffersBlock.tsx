@@ -6,7 +6,7 @@ import { color, border, layout, loan, radius, size, text, iconStroke, Tone, tone
 import { quoteLoan, tenureLabel } from '../../../lib/loans';
 import { LoanOption, LoanOptionsUI } from '../../../types';
 import { productVisual } from './productVisuals';
-import { LOAN_LIST_WORDS, LoanLocale, money, plain } from './loanWords';
+import { CURRENCY_WORD, LOAN_LIST_WORDS, LoanLocale, money, plain } from './loanWords';
 
 /**
  * Family D · LoanOffers — the loans the user can apply for (design §5a).
@@ -184,9 +184,9 @@ function Featured({ option, locale, opened, onOpen }: ItemProps) {
                 <View style={styles.estimate}>
                     <View style={styles.estimateColumn}>
                         <Text style={text('caption')}>{words.estimated}</Text>
-                        <Text style={styles.estimateValue} numberOfLines={1}>
+                        <Text numberOfLines={1}>
                             <Text style={[text('amount'), styles.tabular]}>{plain(Math.round(plan.monthly))}</Text>
-                            <Text style={text('caption')}>{` ${money(0, locale).replace(/^0 /, '')} ${words.perMonth}`}</Text>
+                            <Text style={text('caption')}>{` ${CURRENCY_WORD[locale]} ${words.perMonth}`}</Text>
                         </Text>
                     </View>
                     <View style={styles.estimateColumn}>
@@ -302,7 +302,6 @@ const styles = StyleSheet.create({
         padding: layout.rowGap,
     },
     estimateColumn: { flex: 1, gap: 2 },
-    estimateValue: { flexDirection: 'row' },
     featuredFooter: { gap: 4 },
     row: {
         minHeight: loan.row,
