@@ -30,7 +30,7 @@ interface BeneficiaryListBlockProps {
 const CHIP_WIDTH = 204;
 
 /** Avatar fill rotates so adjacent payees differ; all three pass contrast on white initials. */
-const AVATAR_RAMP = [color.brand[600], color.brand[500], color.brand[400]];
+const avatarRamp = () => [color.brand[600], color.brand[500], color.brand[400]];
 
 export function BeneficiaryListBlock({
     beneficiaries,
@@ -94,7 +94,7 @@ function BeneficiaryChip({
             : null;
 
     const caption = [bank, qualifier].filter(Boolean).join(' · ');
-    const avatarColor = AVATAR_RAMP[index % AVATAR_RAMP.length];
+    const avatarColor = avatarRamp()[index % 3];
 
     return (
         <Pressable
@@ -102,7 +102,7 @@ function BeneficiaryChip({
             disabled={!onSelect}
             style={({ pressed }) => [
                 styles.chip,
-                selected && styles.chipSelected,
+                selected && [styles.chipSelected, { borderColor: color.borderBrand }],
                 pressed && !selected && styles.chipPressed,
             ]}
         >
@@ -129,7 +129,7 @@ function BeneficiaryChip({
             </View>
 
             {selected && (
-                <View style={styles.check}>
+                <View style={[styles.check, { backgroundColor: color.brand[600] }]}>
                     <Check size={12} color={color.text.inverse} strokeWidth={3} />
                 </View>
             )}

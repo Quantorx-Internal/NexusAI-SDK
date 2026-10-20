@@ -3,10 +3,18 @@ import { StyleSheet, View, StyleProp, ViewStyle, ActivityIndicator, Text } from 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ChatScreen } from './views/ChatScreen';
 import { LocaleProvider, Locale, useLocale } from './contexts/LocaleContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+import type { ThemeInput } from './theme/theme';
+import { color } from './theme/tokens';
 
 export interface AiAssistantChatProps {
     /** Initial locale/language */
     locale?: Locale;
+    /**
+     * A theme the bank manages centrally: brand colour and names. When set it
+     * overrides whatever the user saved on the device in Preferences.
+     */
+    theme?: ThemeInput;
     /** Container style */
     style?: StyleProp<ViewStyle>;
 }
@@ -27,7 +35,7 @@ function ChatContainer() {
             <ChatScreen />
             {isChangingLocale && (
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#4F008D" />
+                    <ActivityIndicator size="large" color={color.brand[600]} />
                     <Text style={styles.loadingText}>Switching language...</Text>
                 </View>
             )}
@@ -53,13 +61,15 @@ function ChatContainer() {
  * }
  * ```
  */
-export function AiAssistantChat({ locale = 'en', style }: AiAssistantChatProps = {}) {
+export function AiAssistantChat({ locale = 'en', theme, style }: AiAssistantChatProps = {}) {
     return (
-        <LocaleProvider initialLocale={locale}>
-            <View style={[styles.container, style]}>
-                <ChatContainer />
-            </View>
-        </LocaleProvider>
+        <ThemeProvider initialTheme={theme}>
+            <LocaleProvider initialLocale={locale}>
+                <View style={[styles.container, style]}>
+                    <ChatContainer />
+                </View>
+            </LocaleProvider>
+        </ThemeProvider>
     );
 }
 

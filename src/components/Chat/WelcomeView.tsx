@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, I18nManager, Animated } from 
 import { Landmark, TrendingDown, FileText, CreditCard, Wallet, Clock, Receipt } from 'lucide-react-native';
 import { formatCurrency } from '../../lib/utils';
 import { Locale } from '../../contexts/LocaleContext';
+import { color } from '../../theme/tokens';
 
 export interface WelcomeSummary {
     totalBalance: number;
@@ -82,7 +83,7 @@ export function WelcomeView({ summary, locale, isRTL = false, onQuickAction }: W
                 <View style={styles.summaryGrid}>
                     <View style={styles.summaryRow}>
                         <SummaryCard
-                            icon={<Landmark size={16} color="#4F008D" />}
+                            icon={<Landmark size={16} color={color.brand[600]} />}
                             label={isAr ? 'إجمالي الرصيد' : 'Total Balance'}
                             value={formatCurrency(summary.totalBalance, 'SAR', locale)}
                             isRTL={isLayoutRTL}
@@ -136,7 +137,7 @@ export function WelcomeView({ summary, locale, isRTL = false, onQuickAction }: W
                             onPress={() => onQuickAction(action.message)}
                             activeOpacity={0.7}
                         >
-                            <Icon size={16} color="#4F008D" />
+                            <Icon size={16} color={color.brand[600]} />
                             <Text style={[styles.quickActionText, isRTL && styles.textRTL]}>
                                 {action.label}
                             </Text>

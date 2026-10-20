@@ -72,7 +72,7 @@ export function SubscriptionListBlock({ subscriptions, locale = 'en' }: Subscrip
                         <React.Fragment key={subscription.id}>
                             {index > 0 && <RowDivider />}
                             <View style={styles.row}>
-                                <View style={[styles.avatar, dimmed && styles.avatarDim]}>
+                                <View style={[styles.avatar, { backgroundColor: color.brand[50] }, dimmed && styles.avatarDim]}>
                                     <Text
                                         style={text('rowLabel', {
                                             fontWeight: '700',

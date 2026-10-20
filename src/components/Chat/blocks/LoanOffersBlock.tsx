@@ -157,7 +157,7 @@ function Featured({ option, locale, opened, onOpen }: ItemProps) {
             disabled={!onOpen}
             onPress={onOpen}
             accessibilityRole={onOpen ? 'button' : undefined}
-            style={({ pressed }) => [styles.featured, pressed && onOpen && styles.featuredPressed]}
+            style={({ pressed }) => [styles.featured, { borderColor: color.borderBrand }, pressed && onOpen && styles.featuredPressed]}
         >
             <View style={styles.featuredHeader}>
                 <IconBox box={size.iconBox.lg} background={color.brand[600]}>

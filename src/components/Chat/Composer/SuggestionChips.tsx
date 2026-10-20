@@ -81,7 +81,7 @@ function SuggestionChip({
             onPress={onPress}
             style={({ pressed }) => [
                 styles.chip,
-                suggestion.primary && styles.chipPrimary,
+                suggestion.primary && [styles.chipPrimary, { backgroundColor: color.brand[50], borderColor: color.brand[200] }],
                 pressed && styles.chipPressed,
             ]}
         >

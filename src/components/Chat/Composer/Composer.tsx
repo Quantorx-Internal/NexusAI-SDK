@@ -148,14 +148,14 @@ export function Composer({
                     style={[
                         styles.bar,
                         isLayoutRTL && styles.barRTL,
-                        focused && styles.barFocused,
+                        focused && [styles.barFocused, { borderColor: color.brand[300] }],
                     ]}
                 >
                     <View style={styles.field}>
                         {/* Ghost completion: a second Text under the input, with the
                             typed prefix transparent so only the remainder shows. */}
                         {slot?.ghost ? (
-                            <Text style={styles.ghost} numberOfLines={1} pointerEvents="none">
+                            <Text style={[styles.ghost, { color: color.brand[300] }]} numberOfLines={1} pointerEvents="none">
                                 <Text style={styles.ghostTyped}>{value}</Text>
                                 {slot.ghost}
                             </Text>
@@ -213,7 +213,7 @@ function ActionButton({
             accessibilityLabel={mode}
             style={({ pressed }) => [
                 styles.action,
-                outlined ? styles.actionOutlined : styles.actionFilled,
+                outlined ? styles.actionOutlined : [styles.actionFilled, { backgroundColor: color.brand[600] }],
                 pressed && !disabled && styles.actionPressed,
                 disabled && styles.actionDisabled,
             ]}

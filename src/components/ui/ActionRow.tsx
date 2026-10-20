@@ -36,10 +36,10 @@ export function Button({ label, kind = 'secondary', onPress, disabled, working, 
             style={({ pressed }) => [
                 styles.button,
                 { height: isPrimary ? size.buttonPrimary : size.buttonSecondary },
-                kind === 'primary' && styles.primary,
+                kind === 'primary' && [styles.primary, { backgroundColor: color.brand[600] }],
                 kind === 'secondary' && styles.secondary,
                 kind === 'ghost' && styles.ghost,
-                pressed && !inactive && (isPrimary ? styles.primaryPressed : styles.secondaryPressed),
+                pressed && !inactive && (isPrimary ? [styles.primaryPressed, { backgroundColor: color.brand[700] }] : styles.secondaryPressed),
                 disabled && styles.disabled,
                 style,
             ]}

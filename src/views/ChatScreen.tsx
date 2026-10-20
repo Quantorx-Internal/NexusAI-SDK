@@ -19,6 +19,7 @@ import { mockBills } from '../data/bills';
 import { mockCards } from '../data/cards';
 import { mockSpendingBreakdown } from '../data/spending';
 import { AGENT_VOICES, AgentVoice, AgentVoiceId, getAgentVoice } from '../config/agentVoices';
+import { color } from '../theme/tokens';
 
 const AGENT_VOICE_STORAGE_KEY = '@ai_assistant_agent_voice';
 
@@ -346,12 +347,12 @@ export function ChatScreen() {
             <View style={dynamicStyles.header}>
                 {/* Left section: Bot avatar + Title */}
                 <View style={[styles.headerLeftSection, isLayoutRTL && styles.headerLeftSectionRTL]}>
-                    <View style={styles.botAvatar}>
-                        <Bot size={18} color="#4F008D" />
+                    <View style={[styles.botAvatar, { backgroundColor: color.brand[50] }]}>
+                        <Bot size={18} color={color.brand[600]} />
                     </View>
                     <View style={[styles.titleRow, isLayoutRTL && styles.titleRowRTL]}>
                         <Text style={dynamicStyles.headerTitle}>{t('chat.title')}</Text>
-                        <Sparkles size={14} color="#4F008D" style={styles.titleIcon} />
+                        <Sparkles size={14} color={color.brand[600]} style={styles.titleIcon} />
                     </View>
                 </View>
 
@@ -367,23 +368,23 @@ export function ChatScreen() {
 
                     {locale === 'ar' && (
                         <TouchableOpacity
-                            style={[styles.voiceButton, isLayoutRTL && styles.headerButtonRTL]}
+                            style={[styles.voiceButton, { backgroundColor: color.brand[50] }, isLayoutRTL && styles.headerButtonRTL]}
                             onPress={() => setIsVoicePickerOpen(true)}
                             activeOpacity={0.72}
                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
-                            <Text style={styles.voiceButtonText}>{selectedVoice.nameAr}</Text>
-                            <ChevronDown size={16} color="#4F008D" />
+                            <Text style={[styles.voiceButtonText, { color: color.brand[600] }]}>{selectedVoice.nameAr}</Text>
+                            <ChevronDown size={16} color={color.brand[600]} />
                         </TouchableOpacity>
                     )}
 
                     {/* Auto-speak toggle */}
                     <TouchableOpacity
-                        style={[styles.headerIconButton, autoSpeak && styles.autoSpeakButtonActive]}
+                        style={[styles.headerIconButton, autoSpeak && [styles.autoSpeakButtonActive, { backgroundColor: color.brand[50] }]]}
                         onPress={toggleAutoSpeak}
                     >
                         {autoSpeak ? (
-                            <Volume2 size={20} color="#4F008D" />
+                            <Volume2 size={20} color={color.brand[600]} />
                         ) : (
                             <VolumeX size={20} color="#9CA3AF" />
                         )}
@@ -394,8 +395,8 @@ export function ChatScreen() {
                         style={[styles.headerIconButton, isLayoutRTL && styles.headerButtonRTL]}
                         onPress={toggleLanguage}
                     >
-                        <Globe size={18} color="#4F008D" />
-                        <Text style={styles.languageText}>{locale === 'en' ? 'AR' : 'EN'}</Text>
+                        <Globe size={18} color={color.brand[600]} />
+                        <Text style={[styles.languageText, { color: color.brand[600] }]}>{locale === 'en' ? 'AR' : 'EN'}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -416,11 +417,11 @@ export function ChatScreen() {
                             return (
                                 <TouchableOpacity
                                     key={voice.id}
-                                    style={[styles.voiceOption, isSelected && styles.voiceOptionSelected, isLayoutRTL && styles.voiceOptionRTL]}
+                                    style={[styles.voiceOption, isSelected && [styles.voiceOptionSelected, { backgroundColor: color.brand[50] }], isLayoutRTL && styles.voiceOptionRTL]}
                                     onPress={() => handleVoiceSelect(voice)}
                                 >
-                                    <View style={[styles.voiceOptionAvatar, isSelected && styles.voiceOptionAvatarSelected]}>
-                                        <Bot size={18} color={isSelected ? '#fff' : '#4F008D'} />
+                                    <View style={[styles.voiceOptionAvatar, { backgroundColor: color.brand[50] }, isSelected && [styles.voiceOptionAvatarSelected, { backgroundColor: color.brand[600] }]]}>
+                                        <Bot size={18} color={isSelected ? '#fff' : color.brand[600]} />
                                     </View>
                                     <View style={styles.voiceOptionTextWrap}>
                                         <Text style={[styles.voiceOptionName, isRTL && styles.textRTL]}>
@@ -432,7 +433,7 @@ export function ChatScreen() {
                                                 : (locale === 'ar' ? 'صوت رجالي' : 'Male voice')}
                                         </Text>
                                     </View>
-                                    {isSelected && <Check size={18} color="#4F008D" />}
+                                    {isSelected && <Check size={18} color={color.brand[600]} />}
                                 </TouchableOpacity>
                             );
                         })}

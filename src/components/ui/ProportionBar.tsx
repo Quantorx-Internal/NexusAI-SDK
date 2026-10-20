@@ -13,7 +13,7 @@ export function ProportionBar({ percent }: { percent: number }) {
     const width = Math.max(0, Math.min(100, percent));
     return (
         <View style={styles.track}>
-            <View style={[styles.fill, { width: `${width}%` }]} />
+            <View style={[styles.fill, { width: `${width}%`, backgroundColor: color.brand[600] }]} />
         </View>
     );
 }
@@ -31,7 +31,10 @@ export const RAMP = [
     color.brand[100],
 ] as const;
 
-export const rampAt = (index: number) => RAMP[Math.min(index, RAMP.length - 1)];
+/** The ramp as the tokens hold it now: read at call time, so a new brand colour reaches every bar. */
+const ramp = () => [color.brand[600], color.brand[500], color.brand[400], color.brand[300], color.brand[200], color.brand[100]];
+
+export const rampAt = (index: number) => ramp()[Math.min(index, ramp().length - 1)];
 
 /**
  * Stacked variant — 8h, 2px segment gaps, one segment per rank.

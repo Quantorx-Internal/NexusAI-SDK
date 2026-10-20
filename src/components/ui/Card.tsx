@@ -23,7 +23,7 @@ interface CardProps {
 }
 
 export const Card: React.FC<CardProps> = ({ children, variant = 'info', style }) => (
-    <View style={[styles.base, styles[variant], style]}>{children}</View>
+    <View style={[styles.base, styles[variant], variant === 'decision' && { borderColor: color.borderBrand }, style]}>{children}</View>
 );
 
 const styles = StyleSheet.create({

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, I18nManager, Platform, NativeSyntheticEvent, TextInputKeyPressEventData } from 'react-native';
 import { Send, Mic } from 'lucide-react-native';
 import { Locale } from '../../contexts/LocaleContext';
+import { color } from '../../theme/tokens';
 
 interface ChatInputProps {
     onSend: (text: string) => void;
@@ -101,7 +102,7 @@ export function ChatInput({
                     <TouchableOpacity
                         style={[
                             styles.button,
-                            styles.sendButton,
+                            [styles.sendButton, { backgroundColor: color.brand[600] }],
                             isDisabled && styles.buttonDisabled
                         ]}
                         onPress={handleSend}

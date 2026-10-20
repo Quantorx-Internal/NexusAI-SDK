@@ -106,14 +106,14 @@ export function ListeningOverlay({
                 </View>
 
                 <View style={styles.hintBlock}>
-                    <Text style={styles.hint}>{t.hint}</Text>
+                    <Text style={[styles.hint, { color: tokens.color.brand[700] }]}>{t.hint}</Text>
                     {/* Auto-stop is coming: show it arriving rather than letting
                         the take end without warning. */}
                     {silenceProgress > 0 ? (
                         <View style={styles.progressTrack}>
                             <View
                                 style={[
-                                    styles.progressFill,
+                                    [styles.progressFill, { backgroundColor: tokens.color.brand[600] }],
                                     { width: `${Math.min(100, silenceProgress * 100)}%` },
                                 ]}
                             />
@@ -125,14 +125,14 @@ export function ListeningOverlay({
                     <Pressable
                         onPress={onCancel}
                         accessibilityLabel={t.cancel}
-                        style={({ pressed }) => [styles.side, pressed && styles.sidePressed]}
+                        style={({ pressed }) => [styles.side, { borderColor: tokens.color.brand[300] }, pressed && styles.sidePressed]}
                     >
                         <X size={20} color={tokens.color.brand[700]} strokeWidth={tokens.iconStroke} />
                     </Pressable>
 
                     <Pressable onPress={onStop} accessibilityLabel={t.send}>
-                        <Animated.View style={[styles.micRing, { padding: ring }]}>
-                            <View style={styles.mic}>
+                        <Animated.View style={[styles.micRing, { padding: ring, backgroundColor: tokens.color.brand[200] }]}>
+                            <View style={[styles.mic, { backgroundColor: tokens.color.brand[600] }]}>
                                 <ArrowUp
                                     size={28}
                                     color={tokens.color.text.inverse}
@@ -145,7 +145,7 @@ export function ListeningOverlay({
                     <Pressable
                         onPress={onEditAsText}
                         accessibilityLabel={t.edit}
-                        style={({ pressed }) => [styles.side, pressed && styles.sidePressed]}
+                        style={({ pressed }) => [styles.side, { borderColor: tokens.color.brand[300] }, pressed && styles.sidePressed]}
                     >
                         <Pencil size={18} color={tokens.color.brand[700]} strokeWidth={tokens.iconStroke} />
                     </Pressable>

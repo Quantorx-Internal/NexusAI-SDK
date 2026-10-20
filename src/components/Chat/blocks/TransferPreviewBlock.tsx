@@ -153,7 +153,7 @@ export function TransferPreviewBlock({
                 </View>
 
                 <View style={styles.flowRow}>
-                    <View style={styles.avatar}>
+                    <View style={[styles.avatar, { backgroundColor: color.brand[600] }]}>
                         <Text style={text('caption', { color: color.text.inverse, fontWeight: '700' })}>
                             {initials(toName)}
                         </Text>

@@ -113,7 +113,7 @@ function AmountPrompt({
                                 onPress={() => setCurrency(code)}
                                 style={[
                                     styles.currency,
-                                    code === currency && styles.currencyActive,
+                                    code === currency && [styles.currencyActive, { backgroundColor: color.brand[600] }],
                                 ]}
                             >
                                 <Text

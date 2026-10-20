@@ -16,7 +16,7 @@ export function PageDots({ count, active }: { count: number; active: number }) {
                     key={index}
                     style={[
                         styles.dot,
-                        index === active ? styles.active : styles.inactive,
+                        index === active ? [styles.active, { backgroundColor: color.brand[600] }] : styles.inactive,
                     ]}
                 />
             ))}

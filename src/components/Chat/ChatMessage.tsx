@@ -6,6 +6,7 @@ import { SimpleMarkdownRenderer } from './SimpleMarkdownRenderer';
 import type { LoanPlanChoice, AdvisorAsk } from './blocks';
 import { Locale } from '../../contexts/LocaleContext';
 import { LoanAdvisorService } from '../../services/LoanAdvisorService';
+import { color } from '../../theme/tokens';
 
 interface ChatMessageProps {
     message: ChatMessageType;
@@ -222,23 +223,23 @@ export function ChatMessage({
     ];
 
     const userBubbleStyle = [
-        styles.userBubble,
+        [styles.userBubble, { backgroundColor: color.brand[600] }],
         isLayoutRTL ? styles.userBubbleRTL : null,
     ];
 
     const speechButtonStyle = [
         styles.speechButton,
         isLayoutRTL && styles.speechButtonRTL,
-        (isThisMessageSpeaking || isThisMessageLoading) && styles.speechButtonActive,
+        (isThisMessageSpeaking || isThisMessageLoading) && [styles.speechButtonActive, { backgroundColor: color.brand[50] }],
     ];
 
     return (
         <View style={containerStyle}>
-            <View style={[styles.avatar, isUser ? styles.userAvatar : styles.botAvatar]}>
+            <View style={[styles.avatar, isUser ? [styles.userAvatar, { backgroundColor: color.brand[600] }] : [styles.botAvatar, { backgroundColor: color.brand[50] }]]}>
                 {isUser ? (
                     <User size={16} color="#fff" />
                 ) : (
-                    <Bot size={16} color="#4F008D" />
+                    <Bot size={16} color={color.brand[600]} />
                 )}
             </View>
 
@@ -310,15 +311,15 @@ export function ChatMessage({
                             >
                                 {isThisMessageLoading ? (
                                     <>
-                                        <ActivityIndicator size="small" color="#4F008D" />
-                                        <Text style={[styles.speechButtonText, styles.speechButtonTextActive]}>
+                                        <ActivityIndicator size="small" color={color.brand[600]} />
+                                        <Text style={[styles.speechButtonText, styles.speechButtonTextActive, { color: color.brand[600] }]}>
                                             {t.loading}
                                         </Text>
                                     </>
                                 ) : isThisMessageSpeaking ? (
                                     <>
-                                        <VolumeX size={14} color="#4F008D" />
-                                        <Text style={[styles.speechButtonText, styles.speechButtonTextActive]}>
+                                        <VolumeX size={14} color={color.brand[600]} />
+                                        <Text style={[styles.speechButtonText, styles.speechButtonTextActive, { color: color.brand[600] }]}>
                                             {t.stop}
                                         </Text>
                                     </>

@@ -19,7 +19,7 @@ interface TypingIndicatorProps {
     locale?: 'en' | 'ar';
 }
 
-const RAMP = [color.brand[600], color.brand[400], color.brand[200]];
+const ramp = () => [color.brand[600], color.brand[400], color.brand[200]];
 
 export function TypingIndicator({ isVisible, status, locale = 'en' }: TypingIndicatorProps) {
     const dots = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
@@ -51,7 +51,7 @@ export function TypingIndicator({ isVisible, status, locale = 'en' }: TypingIndi
 
     return (
         <View style={styles.container}>
-            <View style={styles.avatar}>
+            <View style={[styles.avatar, { backgroundColor: color.brand[50] }]}>
                 <Bot size={16} color={color.brand[600]} strokeWidth={iconStroke} />
             </View>
 
@@ -62,7 +62,7 @@ export function TypingIndicator({ isVisible, status, locale = 'en' }: TypingIndi
                             key={index}
                             style={[
                                 styles.dot,
-                                { backgroundColor: RAMP[index], transform: [{ translateY: value }] },
+                                { backgroundColor: ramp()[index], transform: [{ translateY: value }] },
                             ]}
                         />
                     ))}
