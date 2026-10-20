@@ -11,6 +11,10 @@ import { WelcomeView, WelcomeSummary } from '../components/Chat/WelcomeView';
 import { useChatViewModel } from '../viewmodels/useChatViewModel';
 import { useSpeech } from '../hooks/useSpeech';
 import { useLocale } from '../contexts/LocaleContext';
+import { useTheme } from '../contexts/ThemeContext';
+import { assistantName } from '../theme/theme';
+import { preferences as pref } from '../theme/tokens';
+import { PreferencesScreen } from './PreferencesScreen';
 import { computeSuggestions } from '../lib/suggestions';
 import { mockAccounts } from '../data/accounts';
 import { mockBeneficiaries } from '../data/beneficiaries';
@@ -24,7 +28,9 @@ import { color } from '../theme/tokens';
 const AGENT_VOICE_STORAGE_KEY = '@ai_assistant_agent_voice';
 
 export function ChatScreen() {
-    const { locale, setLocale, isRTL, t } = useLocale();
+    const { locale, setLocale, isRTL } = useLocale();
+    const { theme, version: themeVersion, preferencesOpened, markPreferencesOpened } = useTheme();
+    const [showPreferences, setShowPreferences] = React.useState(false);
     const { messages, isLoading, isTranscribing, sendMessage, handlers, isRecording, level, silenceProgress, startRecording, stopRecording, cancelRecording, resetChat } = useChatViewModel({ locale });
     const flatListRef = useRef<FlatList>(null);
     const [selectedVoiceId, setSelectedVoiceId] = React.useState<AgentVoiceId>('alaa-omni');
@@ -343,15 +349,37 @@ export function ChatScreen() {
 
     return (
         <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
+            {showPreferences ? (
+                <PreferencesScreen locale={locale} isRTL={isRTL} onClose={() => setShowPreferences(false)} />
+            ) : (
+            <>
             {/* Header */}
             <View style={dynamicStyles.header}>
                 {/* Left section: Bot avatar + Title */}
                 <View style={[styles.headerLeftSection, isLayoutRTL && styles.headerLeftSectionRTL]}>
-                    <View style={[styles.botAvatar, { backgroundColor: color.brand[50] }]}>
+                    {/* The robot opens Preferences. An icon-as-button has no other
+                        affordance, so a brand-300 ring stays on it until the user
+                        has opened it once. */}
+                    <Pressable
+                        onPress={() => {
+                            stopAllSpeech();
+                            markPreferencesOpened();
+                            setShowPreferences(true);
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={locale === 'ar' ? 'تفضيلات المساعد' : 'Assistant preferences'}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        style={({ pressed }) => [
+                            styles.botAvatar,
+                            { backgroundColor: color.brand[50] },
+                            !preferencesOpened && { borderWidth: pref.entryRing, borderColor: color.brand[300] },
+                            pressed && { transform: [{ scale: pref.entryPressedScale }] },
+                        ]}
+                    >
                         <Bot size={18} color={color.brand[600]} />
-                    </View>
+                    </Pressable>
                     <View style={[styles.titleRow, isLayoutRTL && styles.titleRowRTL]}>
-                        <Text style={dynamicStyles.headerTitle}>{t('chat.title')}</Text>
+                        <Text style={dynamicStyles.headerTitle} numberOfLines={1}>{assistantName(theme, locale)}</Text>
                         <Sparkles size={14} color={color.brand[600]} style={styles.titleIcon} />
                     </View>
                 </View>
@@ -457,6 +485,7 @@ export function ChatScreen() {
                     <FlatList
                         ref={flatListRef}
                         data={messages}
+                        extraData={themeVersion}
                         keyExtractor={(item) => item.id}
                         renderItem={({ item }) => (
                             <ChatMessage
@@ -494,6 +523,7 @@ export function ChatScreen() {
 
                 <Composer
                     onSend={handleSend}
+                    bankName={theme.names.bankName}
                     isLoading={isLoading}
                     isTranscribing={isTranscribing}
                     isRecording={isRecording}
@@ -508,6 +538,8 @@ export function ChatScreen() {
                     isRTL={isRTL}
                 />
             </KeyboardAvoidingView>
+            </>
+            )}
         </SafeAreaView>
     );
 }

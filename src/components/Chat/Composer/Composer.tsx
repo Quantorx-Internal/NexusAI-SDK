@@ -28,6 +28,8 @@ import { ListeningOverlay } from './ListeningOverlay';
 
 interface ComposerProps {
     onSend: (text: string) => void;
+    /** The bank's name, for the placeholder ("Ask AJB Bank anything"). */
+    bankName?: string;
     isLoading?: boolean;
     isTranscribing?: boolean;
     isRecording?: boolean;
@@ -48,6 +50,7 @@ interface ComposerProps {
 
 export function Composer({
     onSend,
+    bankName = 'AJB Bank',
     isLoading,
     isTranscribing,
     isRecording,
@@ -119,7 +122,7 @@ export function Composer({
 
     const placeholder = isTranscribing
         ? isAr ? 'جاري التحويل…' : 'Transcribing…'
-        : isAr ? 'اسأل ANB عن أي شيء' : 'Ask ANB anything';
+        : isAr ? `اسأل ${bankName} عن أي شيء` : `Ask ${bankName} anything`;
 
     return (
         <>

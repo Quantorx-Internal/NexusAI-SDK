@@ -8,6 +8,22 @@ export type { AiAssistantChatProps } from './AiAssistantChat';
 // Contexts
 export { LocaleProvider, useLocale } from './contexts/LocaleContext';
 export type { Locale } from './contexts/LocaleContext';
+export { ThemeProvider, useTheme } from './contexts/ThemeContext';
+export {
+    createTheme,
+    applyTheme,
+    contrastRatio,
+    brandRamp,
+    normalizeHex,
+    assistantName,
+    DEFAULT_THEME,
+    DEFAULT_NAMES,
+    DEFAULT_PRIMARY,
+    PRESET_COLORS,
+    MIN_CONTRAST,
+} from './theme/theme';
+export type { Theme, ThemeInput, ThemeColors, ThemeNames } from './theme/theme';
+export { PreferencesScreen } from './views/PreferencesScreen';
 
 // Services
 export { ChatService, composeAgentInput, eventNote, normaliseUi } from './services/ChatService';
@@ -109,7 +125,7 @@ export {
 export type { AdjusterTick, AffordabilityFit } from './components/ui';
 
 // Design tokens — the single source for colour, type, spacing and radii
-export { tokens, color, type as typeScale, space, layout, radius, size, text, loan as loanTokens } from './theme/tokens';
+export { tokens, color, type as typeScale, space, layout, radius, size, text, loan as loanTokens, preferences as preferencesTokens } from './theme/tokens';
 export type { Tone, TypeRole } from './theme/tokens';
 
 // Types

@@ -261,6 +261,27 @@ export const loan = {
     recalculatingOpacity: 0.5,
 } as const;
 
+/**
+ * Assistant preferences (design §6): the nav, the fields, the swatches and
+ * the ramp chips. The hint ring on the header's robot icon is here too.
+ */
+export const preferences = {
+    navHeight: 68,
+    contentPadding: 16,
+    sectionGap: 24,
+    /** Inputs: 44h, r10, border-strong; 1.5 brand on focus. */
+    inputHeight: 44,
+    /** Swatches: 44 outer with a 2pt ring, 34 inner, 12 apart. */
+    swatch: 44,
+    swatchInner: 34,
+    swatchRing: 2,
+    swatchGap: 12,
+    rampChip: 28,
+    /** The 2pt brand-300 ring on the robot icon until Preferences is opened once. */
+    entryRing: 2,
+    entryPressedScale: 0.94,
+} as const;
+
 /** Icons are lucide-react-native at strokeWidth 2. */
 export const iconStroke = 2;
 
@@ -294,6 +315,7 @@ export const tokens = {
     size,
     elevation,
     loan,
+    preferences,
 };
 
 export default tokens;
