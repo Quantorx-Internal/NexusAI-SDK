@@ -20,6 +20,7 @@ const runtimeKeys = [
   'TTS_REWRITE',
   'TTS_REDACT',
   'TTS_NORMALISE_LOUDNESS',
+  'ADVISOR_MODEL',
   'MOCK_OTP',
   'MOCK_DELAY_MS',
 ];

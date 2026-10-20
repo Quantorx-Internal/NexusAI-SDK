@@ -95,6 +95,11 @@ function standingIntents(locale: 'en' | 'ar'): Suggestion[] {
             message: isAr ? 'اعرض مصاريفي' : 'Show me my spending',
         },
         {
+            id: 'intent-loans',
+            label: isAr ? 'تمويل يناسبني' : 'Loans for me',
+            message: isAr ? 'ايش التمويلات اللي اقدر اقدم عليها؟' : 'Which loans can I apply for?',
+        },
+        {
             id: 'intent-activity',
             label: isAr ? 'آخر حركاتي' : 'Recent activity',
             message: isAr ? 'وش آخر حركاتي؟' : 'Show my recent transactions',

@@ -1,5 +1,7 @@
-import { SpendingBreakdown } from '../types';
+import { ChatEvent, ChatMessageUI, LoanOfferUI, LoanOptionsUI, SpendingBreakdown } from '../types';
 import { ENV } from '../config/constants';
+import { demoLoanOptions, findLoanProduct, loanOffer } from '../lib/loanOptions';
+import { quoteLoan, tenureLabel } from '../lib/loans';
 
 import { mockAccounts } from '../data/accounts';
 import { mockBeneficiaries } from '../data/beneficiaries';
@@ -12,9 +14,15 @@ import { TransactionService } from './TransactionService';
 
 const N8N_WEBHOOK_URL = ENV.N8N_WEBHOOK_URL;
 // Generate mock response for common queries (matching web app behavior)
-function getMockResponse(message: string, sessionId: string, locale: string): any | null {
+function getMockResponse(message: string, sessionId: string, locale: string, event?: ChatEvent | null): any | null {
     const lowerMessage = message.toLowerCase();
     const isAr = locale === 'ar';
+
+    // ===== LOANS =====
+    // The loan card and the loan list, priced by the app from the same
+    // arithmetic the server uses, so the offline demo draws the real cards.
+    const loanReply = getMockLoanResponse(message, sessionId, locale, event);
+    if (loanReply) return loanReply;
 
     // ===== PRODUCT APPLICATION QUERIES =====
     // Handle "I want to apply for {product}" messages
@@ -867,8 +875,196 @@ How can I assist you today?`,
     return null;
 }
 
+const EMPTY_UI: ChatMessageUI = {
+    showAccounts: false,
+    showBeneficiaries: false,
+    showCards: false,
+    showBills: false,
+    showSpendingBreakdown: false,
+    showSubscriptions: false,
+    transferPreview: null,
+    transferSuccess: null,
+    exchangeRate: null,
+    requestOtp: false,
+};
+
+/** Which loan a message names, by product keywords in either language. Word-bounded: "car" must not match "card". */
+function loanProductIn(text: string): string | null {
+    const lower = text.toLowerCase();
+    const named = findLoanProduct(text);
+    if (named?.loan) return named.id;
+    if (/\b(car|vehicle|auto)\b/.test(lower) || /سيار/.test(text)) return 'prod-003';
+    if (/\b(home|house|mortgage|property)\b/.test(lower) || /عقار|منزل|بيت/.test(text)) return 'prod-004';
+    if (/\b(micro|small|instant)\b.*\bloan\b|\bloan\b.*\b(micro|small|instant)\b/.test(lower) || /قرض صغير|سلفة/.test(text)) return 'prod-002';
+    if (/\b(debt|consolidat)/.test(lower) || /توحيد|ديون/.test(text)) return 'prod-005';
+    if (/\bpersonal\b/.test(lower) || /شخصي/.test(text)) return 'prod-001';
+    return null;
+}
+
+/** "100,000", "100 الف", "500k", "1.5 million": the amount a message names, in SAR. */
+function amountIn(text: string): number | null {
+    const match = text.replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
+        .match(/(\d[\d,]*(?:\.\d+)?)\s*(k|ألف|الف|آلاف|thousand|مليون|million|m\b)?/i);
+    if (!match) return null;
+    let value = parseFloat(match[1].replace(/,/g, ''));
+    if (!Number.isFinite(value) || value <= 0) return null;
+    const unit = (match[2] || '').toLowerCase();
+    if (/^(k|ألف|الف|آلاف|thousand)$/.test(unit)) value *= 1_000;
+    else if (/^(مليون|million|m)$/.test(unit)) value *= 1_000_000;
+    // A bare small number next to a loan is thousands: "100 for a car" is not 100 SAR.
+    else if (value < 1000) value *= 1_000;
+    return Math.round(value);
+}
+
+/** "4 years", "5 سنوات", "60 شهر": the tenure a message names, in months. */
+function monthsIn(text: string): number | null {
+    const latin = text.replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660));
+    const years = latin.match(/(\d+)\s*(years?|yrs?|سن(?:ة|وات|ين))/i);
+    if (years) return parseInt(years[1], 10) * 12;
+    if (/سنتين/.test(latin)) return 24;
+    const months = latin.match(/(\d+)\s*(months?|شهر|أشهر|شهور)/i);
+    if (months) return parseInt(months[1], 10);
+    return null;
+}
+
+function getMockLoanResponse(message: string, sessionId: string, locale: string, event?: ChatEvent | null): any | null {
+    const isAr = locale === 'ar';
+    const lower = message.toLowerCase();
+    const reply = (text: string, ui: Partial<ChatMessageUI>) => ({ message: text, sessionId, ui: { ...EMPTY_UI, ...ui } });
+
+    const cardIntro = (offer: LoanOfferUI) => {
+        const name = (isAr ? offer.product.nameAr : offer.product.name) || offer.product.name;
+        const quote = quoteLoan(offer.terms, offer.amount, offer.months);
+        const monthly = Math.round(quote.monthly).toLocaleString('en-US');
+        return isAr
+            ? `هذا ${name}. حرّك المبلغ والمدة وشوف القسط الشهري، وحالياً يطلع ${monthly} ر.س.`
+            : `Here is the ${name}. Slide the amount and the term to see the monthly installment; right now it comes to ${monthly} SAR.`;
+    };
+
+    // The user tapped Apply on the loan card: file it as a ticket for the financing team.
+    if (event?.type === 'loan') {
+        const offer = loanOffer(event.productId, event.amount, event.months);
+        if (!offer) return null;
+        const quote = quoteLoan(offer.terms, offer.amount, offer.months);
+        const ticketNumber = `TKT-${String(Math.floor(100000 + Math.random() * 900000))}`;
+        const amount = offer.amount.toLocaleString('en-US');
+        const monthly = Math.round(quote.monthly).toLocaleString('en-US');
+        const tenure = tenureLabel(offer.months, isAr ? 'ar' : 'en');
+        return reply(
+            isAr
+                ? `تمام، رفعت طلبك: ${amount} ر.س على ${tenure}، والقسط ${monthly} ر.س شهرياً. رقم التذكرة ${ticketNumber}، وفريق التمويل بيتواصل معك. النسبة النهائية والموافقة تعتمد على سياسة البنك والتحقق.`
+                : `Filed: ${amount} SAR over ${tenure}, ${monthly} SAR a month. Your ticket is ${ticketNumber} and the financing team will follow up. The final rate and approval depend on bank policy and verification.`,
+            {
+                ticketCreated: {
+                    ticketId: `tkt-${Date.now()}`,
+                    ticketNumber,
+                    estimatedResolutionTime: isAr ? '1–2 يوم عمل' : '1–2 business days',
+                },
+            }
+        );
+    }
+
+    // The user tapped a loan in the list: open its card.
+    if (event?.type === 'action' && event.card === 'loanOptions') {
+        const offer = loanOffer(event.id);
+        if (offer) return reply(cardIntro(offer), { loanOffer: offer });
+        const product = findLoanProduct(event.id);
+        const name = product ? (isAr ? product.nameAr : product.name) || product.name : event.id;
+        return reply(
+            isAr
+                ? `${name} يُسعّر حسب الطلب. فريق التمويل يراجع قرضك الحالي ويعطيك عرضاً مناسباً.`
+                : `${name} is priced on request. The financing team reviews your current loan and comes back with an offer.`,
+            {}
+        );
+    }
+
+    const mentionsLoans = /\b(loans?|financ|borrow|mortgage)/.test(lower) || /قرض|قروض|تمويل|سلفة|استلف|أستلف/.test(message);
+    if (!mentionsLoans) return null;
+
+    const productId = loanProductIn(message);
+    const asksForList =
+        /\b(which|what|options|available|list|compare|can i get|eligible)\b/.test(lower)
+        || /اي|أي|ايش|وش|المتاح|متاحة|اقدر|أقدر|خيارات|عندكم/.test(message);
+
+    // A loan named, or a purpose: its card. "Which loans can I get?": the list.
+    if (productId && (!asksForList || amountIn(message))) {
+        const offer = loanOffer(productId, amountIn(message), monthsIn(message));
+        if (offer) return reply(cardIntro(offer), { loanOffer: offer });
+    }
+
+    const options = demoLoanOptions();
+    const count = options.available.length;
+    return reply(
+        isAr
+            ? `تقدر تقدم على ${count} ${count === 1 ? 'تمويل' : 'تمويلات'}. أنسبها لميزانيتك ${options.featured ? 'القرض الأول في القائمة' : 'موضح تحت'}.`
+            : `You can apply for ${count} ${count === 1 ? 'loan' : 'loans'}. The one that suits your budget best is at the top.`,
+        { loanOptions: options }
+    );
+}
+
+/**
+ * The machine note the agent reads after a tap, appended to the user's text.
+ * It goes into the agent's memory with the message, which is the point: three
+ * turns later the agent can still see what was tapped.
+ */
+export function eventNote(event: ChatEvent | null | undefined): string {
+    if (!event) return '';
+    if (event.type === 'loan') {
+        return `[UI loan] apply on ${event.productId}: amount=${event.amount} SAR, months=${event.months}. The user set these terms on the loan card and tapped Apply. Call submit_loan_application now: it prices the plan, then files it or tells you to advise first. Do not call quote_loan and do not ask for the amount or tenure again.`;
+    }
+    if (event.type === 'action' && event.card === 'loanOptions') {
+        return `[UI action] open on loanOptions ${event.id}. The user tapped this loan in the loan list. If it has a loan card, call quote_loan for it; else explain it in one or two lines. showLoanOptions must be false.`;
+    }
+    return '';
+}
+
+/** The user's words, then the notes the app adds for the agent. */
+export function composeAgentInput(text: string, event?: ChatEvent | null, extraNote?: string | null): string {
+    const notes = [eventNote(event), extraNote || ''].filter(Boolean);
+    return notes.length ? `${text}\n\n${notes.join('\n\n')}` : text;
+}
+
+const isObject = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object';
+
+/**
+ * Clean the agent's ui against what the user just did, and against shapes
+ * the cards cannot draw. The agent is asked not to repeat a list the user
+ * answered; it does anyway, sometimes. These rules make the reply consistent
+ * no matter what came back.
+ */
+export function normaliseUi(input: ChatMessageUI | undefined, event?: ChatEvent | null): ChatMessageUI | undefined {
+    if (!isObject(input)) return input;
+    const ui: ChatMessageUI = { ...input };
+
+    // A loan card needs its terms; a list needs its rows.
+    const offer = ui.loanOffer as LoanOfferUI | null | undefined;
+    if (offer && !(isObject(offer) && isObject(offer.terms) && isObject(offer.product))) ui.loanOffer = null;
+    const options = ui.loanOptions as LoanOptionsUI | null | undefined;
+    if (options && !(isObject(options) && Array.isArray(options.available))) ui.loanOptions = null;
+    else if (options && !Array.isArray(options.unavailable)) ui.loanOptions = { ...options, unavailable: [] };
+
+    if (event?.type === 'action' && event.card === 'loanOptions') {
+        // The user picked a loan from the list. The list again would ask again.
+        ui.loanOptions = null;
+    }
+    if (event?.type === 'loan') {
+        // The user applied with these terms. The same card again asks again.
+        ui.loanOffer = null;
+    }
+    return ui;
+}
+
+export interface SendMessageOptions {
+    /** What the user tapped, for the agent. */
+    event?: ChatEvent | null;
+    /** A note the app adds for the agent, such as what the loan card's advisor said. */
+    note?: string | null;
+}
+
 export class ChatService {
-    static async sendMessage(content: string, sessionId: string, locale: string): Promise<any> {
+    static async sendMessage(content: string, sessionId: string, locale: string, options: SendMessageOptions = {}): Promise<any> {
+        const { event = null, note = null } = options;
+        const agentInput = composeAgentInput(content, event, note);
         try {
             // Call N8N webhook FIRST - this matches the web app behavior exactly
             // The web app always calls POST /api/chat which forwards to N8N
@@ -879,7 +1075,7 @@ export class ChatService {
                 : '[SYSTEM INSTRUCTION: You MUST respond ONLY in English. Do not respond in any other language regardless of what language the user writes in.]';
 
             // Prepend the language instruction to the user's message
-            const chatInputWithLanguage = `${languageInstruction}\n\nUser message: ${content}`;
+            const chatInputWithLanguage = `${languageInstruction}\n\nUser message: ${agentInput}`;
 
             const response = await fetch(N8N_WEBHOOK_URL, {
                 method: 'POST',
@@ -890,7 +1086,9 @@ export class ChatService {
                     locale,
                     responseLanguage: locale === 'ar' ? 'Arabic' : 'English',
                     client: 'react-native',
-                    apiUrl: ENV.API_CALLBACK_URL
+                    apiUrl: ENV.API_CALLBACK_URL,
+                    // The structured tap, for a backend that reads events directly.
+                    event,
                 }),
             });
 
@@ -906,7 +1104,7 @@ export class ChatService {
             // If no structured response, just return the data with mock data attached
             if (!data.structured) {
                 console.log('ChatService: No structured data, using direct response');
-                return await attachMockData(data);
+                return await attachMockData({ ...data, ui: normaliseUi(data.ui, event) });
             }
 
             let parsed: any;
@@ -936,14 +1134,14 @@ export class ChatService {
             }
 
             // Attach mock data based on UI flags (same as web app)
-            return await attachMockData(parsed);
+            return await attachMockData({ ...parsed, ui: normaliseUi(parsed.ui, event) });
 
         } catch (error) {
             console.error('ChatService: Error calling N8N:', error);
 
             // On N8N error, fall back to mock response (for offline/error resilience)
             console.log('ChatService: Falling back to mock response...');
-            const fallbackMock = getMockResponse(content, sessionId, locale);
+            const fallbackMock = getMockResponse(content, sessionId, locale, event);
             if (fallbackMock) {
                 return fallbackMock;
             }

@@ -1,7 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { ChatMessage, Account } from '../types';
-import { ChatService } from '../services/ChatService';
+import { ChatMessage, Account, ChatResolution, LoanOfferUI } from '../types';
+import { ChatService, SendMessageOptions } from '../services/ChatService';
 import { VoiceService } from '../services/VoiceService';
+import { AdvisorRemark, LoanAdvisorService } from '../services/LoanAdvisorService';
+import { tenureLabel } from '../lib/loans';
+import type { LoanPlanChoice, AdvisorAsk } from '../components/Chat/blocks';
 import {
     RecordingPresets,
     requestRecordingPermissionsAsync,
@@ -236,11 +239,21 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
         isDisposedRef.current = false;
     }, [disposeRecording]);
 
-    const sendMessage = useCallback(async (content: string) => {
+    /**
+     * The loan card's last remark that did not come from the server. The
+     * next turn carries it as a note, so "ok, do that" means the plan the
+     * card talked about. The server remembers its own remarks.
+     */
+    const pendingRemarkRef = useRef<AdvisorRemark | null>(null);
+
+    const sendMessage = useCallback(async (
+        content: string,
+        options: SendMessageOptions & { display?: string } = {}
+    ): Promise<any | null> => {
         // Don't send if disposed
         if (isDisposedRef.current) {
             console.log(`[useChatViewModel:${instanceIdRef.current}] Cannot send - instance disposed`);
-            return;
+            return null;
         }
 
         const userMsg: ChatMessage = {
@@ -248,18 +261,24 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
             role: 'user',
             content,
             timestamp: new Date().toISOString(),
+            ...(options.display ? { display: { kind: 'action' as const, label: options.display } } : null),
         };
 
         setMessages(prev => [...prev, userMsg]);
         setIsLoading(true);
 
+        // The card's advisor spoke since the last turn: tell the agent once.
+        const remark = pendingRemarkRef.current;
+        pendingRemarkRef.current = null;
+        const note = [options.note, remark ? LoanAdvisorService.cardNote(remark) : null].filter(Boolean).join('\n\n') || null;
+
         try {
-            const response = await ChatService.sendMessage(content, sessionId, locale);
+            const response = await ChatService.sendMessage(content, sessionId, locale, { event: options.event, note });
 
             // Check if disposed while waiting for response
             if (isDisposedRef.current) {
                 console.log(`[useChatViewModel:${instanceIdRef.current}] Response received but instance disposed`);
-                return;
+                return null;
             }
 
             const botMsg: ChatMessage = {
@@ -283,6 +302,7 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
             };
 
             setMessages(prev => [...prev, botMsg]);
+            return response;
         } catch (error) {
             console.error('Chat error:', error);
 
@@ -296,12 +316,92 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
                     timestamp: new Date().toISOString(),
                 }]);
             }
+            return null;
         } finally {
             if (!isDisposedRef.current) {
                 setIsLoading(false);
             }
         }
     }, [sessionId, locale]);
+
+    /** Patch how the user answered the card in one assistant message. */
+    const resolveMessage = useCallback((messageId: string, resolution: ChatResolution | null) => {
+        setMessages(prev => prev.map(m => {
+            if (m.id !== messageId) return m;
+            if (!resolution) {
+                const { resolution: _dropped, ...rest } = m;
+                return rest;
+            }
+            return { ...m, resolution };
+        }));
+    }, []);
+
+    /** The user tapped a loan in the list: ask the agent for its card. */
+    const handleLoanOpen = useCallback((productId: string, name: string, messageId: string) => {
+        resolveMessage(messageId, { prompt: 'loanOptions', status: 'done', productId, at: new Date().toISOString() });
+        const label = name || productId;
+        void sendMessage(label, {
+            event: { type: 'action', card: 'loanOptions', action: 'open', id: productId },
+            display: locale === 'ar' ? `أبي أشوف ${label}` : `Show me the ${label}`,
+        });
+    }, [locale, resolveMessage, sendMessage]);
+
+    /**
+     * Apply on the loan card. The card dims and its CTA spins until the reply
+     * lands: a ticket marks it applied, a dead request marks it failed, and
+     * anything else (the agent advising first) hands the card back live.
+     */
+    const handleLoanApply = useCallback(async (choice: LoanPlanChoice, name: string, messageId: string) => {
+        const isAr = locale === 'ar';
+        const amount = choice.amount.toLocaleString('en-US');
+        const tenure = tenureLabel(choice.months, isAr ? 'ar' : 'en');
+        const label = isAr
+            ? `طلب التقديم: ${amount} ر.س على ${tenure}`
+            : `Apply: ${amount} SAR over ${tenure}`;
+        const loan = { amount: choice.amount, months: choice.months };
+        resolveMessage(messageId, { prompt: 'loan', status: 'pending', productId: choice.productId, loan, at: new Date().toISOString() });
+
+        const response = await sendMessage(`${isAr ? 'أبي أقدم على' : 'I want to apply for the'} ${name || choice.productId}`, {
+            event: { type: 'loan', productId: choice.productId, amount: choice.amount, months: choice.months },
+            display: label,
+        });
+        if (isDisposedRef.current) return;
+        if (response === null) {
+            // The request died. The reason is on the card, and the CTA is the way to retry.
+            resolveMessage(messageId, { prompt: 'loan', status: 'failed', productId: choice.productId, loan, at: new Date().toISOString() });
+        } else if (response?.ui?.ticketCreated) {
+            resolveMessage(messageId, { prompt: 'loan', status: 'done', productId: choice.productId, loan, at: new Date().toISOString() });
+        } else {
+            // Not filed: the agent is advising first, or answered with a new card. The user decides again.
+            resolveMessage(messageId, null);
+        }
+    }, [locale, resolveMessage, sendMessage]);
+
+    /** The card's advisor: a remark on the plan the user settled on. */
+    const handleLoanAdvise = useCallback(async (
+        ask: AdvisorAsk & { offer: LoanOfferUI },
+        signal: AbortSignal
+    ): Promise<string | null> => {
+        const said = messages
+            .filter(m => m.role === 'user')
+            .map(m => m.content.split('\n\n[UI')[0].trim())
+            .filter(Boolean)
+            .slice(-3);
+        const remark = await LoanAdvisorService.remark({
+            sessionId,
+            locale,
+            productId: ask.productId,
+            amount: ask.amount,
+            months: ask.months,
+            from: ask.from,
+            offer: ask.offer,
+            customerSaid: said,
+        }, signal);
+        if (!remark || signal.aborted) return null;
+        // The server keeps its own remarks for the next turn; the others ride on the next message.
+        if (remark.source !== 'api') pendingRemarkRef.current = remark;
+        return remark.text;
+    }, [messages, sessionId, locale]);
 
     // Action handlers
     const handleAction = useCallback((action: string) => {
@@ -527,6 +627,10 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
             },
             onTransactionSelect: (tx: any) =>
                 sendMessage(`Tell me more about the ${tx.merchantName} transaction`),
+            // Loan handlers
+            onLoanOpen: handleLoanOpen,
+            onLoanApply: handleLoanApply,
+            onLoanAdvise: handleLoanAdvise,
         }
     };
 }

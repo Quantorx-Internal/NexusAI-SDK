@@ -1,9 +1,11 @@
 import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator, I18nManager } from 'react-native';
 import { Bot, User, Volume2, VolumeX } from 'lucide-react-native';
-import { ChatMessage as ChatMessageType, Account, Beneficiary, Card, Bill, SpendingBreakdown, Subscription, ProductRecommendation, Transaction } from '../../types';
+import { ChatMessage as ChatMessageType, Account, Beneficiary, Card, Bill, SpendingBreakdown, Subscription, ProductRecommendation, Transaction, LoanOfferUI } from '../../types';
 import { SimpleMarkdownRenderer } from './SimpleMarkdownRenderer';
+import type { LoanPlanChoice, AdvisorAsk } from './blocks';
 import { Locale } from '../../contexts/LocaleContext';
+import { LoanAdvisorService } from '../../services/LoanAdvisorService';
 
 interface ChatMessageProps {
     message: ChatMessageType;
@@ -30,6 +32,15 @@ interface ChatMessageProps {
     onRecommendationApply?: (recommendation: ProductRecommendation) => void;
     onRecommendationDetails?: (recommendation: ProductRecommendation) => void;
     onTransactionSelect?: (transaction: Transaction) => void;
+    // Loan handlers. Each gets the message the card sits in, so the view model
+    // can mark that message as answered.
+    onLoanOpen?: (productId: string, name: string, messageId: string) => void;
+    onLoanApply?: (choice: LoanPlanChoice, name: string, messageId: string) => void;
+    onLoanAdvise?: (ask: AdvisorAsk & { offer: LoanOfferUI }, signal: AbortSignal) => Promise<string | null>;
+    /** The newest assistant reply: its loan cards take input. */
+    isLatest?: boolean;
+    /** A request is in flight. */
+    disabled?: boolean;
     // Speech props
     onSpeechToggle?: (text: string, messageId: string) => void;
     isSpeaking?: boolean;
@@ -62,6 +73,11 @@ export function ChatMessage({
     onRecommendationApply,
     onRecommendationDetails,
     onTransactionSelect,
+    onLoanOpen,
+    onLoanApply,
+    onLoanAdvise,
+    isLatest = false,
+    disabled = false,
     onSpeechToggle,
     isSpeaking,
     isLoadingSpeech,
@@ -156,6 +172,28 @@ export function ChatMessage({
     const productRecommendation = ui?.productRecommendation || undefined;
     const exchangeRate = ui?.exchangeRate || undefined;
 
+    // Loans come straight off the ui payload. The handlers are bound to this
+    // message so the card's answer lands on the right bubble.
+    const loanOffer = ui?.loanOffer || undefined;
+    const loanOptions = ui?.loanOptions || undefined;
+    const productName = (p: { name: string; nameAr?: string } | undefined) =>
+        (locale === 'ar' ? p?.nameAr : p?.name) || p?.name || '';
+    const handleLoanOpen = onLoanOpen && loanOptions
+        ? (productId: string) => {
+            const option = [...loanOptions.available, ...loanOptions.unavailable].find(o => o.product.id === productId);
+            onLoanOpen(productId, productName(option?.product), message.id);
+        }
+        : undefined;
+    const handleLoanApply = onLoanApply && loanOffer
+        ? (choice: LoanPlanChoice) => onLoanApply(choice, productName(loanOffer.product), message.id)
+        : undefined;
+    const askLoanAdvisor = onLoanAdvise && loanOffer
+        ? (ask: AdvisorAsk, signal: AbortSignal) => onLoanAdvise({ ...ask, offer: loanOffer }, signal)
+        : undefined;
+    const localLoanRemark = loanOffer
+        ? (amount: number, months: number) => LoanAdvisorService.localRemark(loanOffer, amount, months, locale)
+        : undefined;
+
     const handleSpeechPress = () => {
         if (onSpeechToggle) {
             onSpeechToggle(message.content, message.id);
@@ -208,7 +246,7 @@ export function ChatMessage({
                 {isUser ? (
                     <View style={userBubbleStyle}>
                         <Text style={[styles.userText, isRTL && styles.textRTL]}>
-                            {message.content}
+                            {message.display?.label ?? message.content}
                         </Text>
                     </View>
                 ) : (
@@ -234,6 +272,11 @@ export function ChatMessage({
                             transactions={transactions}
                             transactionsTitle={transactionsTitle}
                             transactionsUnavailable={message.transactionsUnavailable}
+                            loanOffer={loanOffer}
+                            loanOptions={loanOptions}
+                            loanResolution={message.resolution}
+                            isLatest={isLatest}
+                            disabled={disabled}
                             locale={locale}
                             onAction={onAction}
                             onAccountSelect={onAccountSelect}
@@ -250,6 +293,10 @@ export function ChatMessage({
                             onRecommendationApply={onRecommendationApply}
                             onRecommendationDetails={onRecommendationDetails}
                             onTransactionSelect={onTransactionSelect}
+                            onLoanOpen={handleLoanOpen}
+                            onLoanApply={handleLoanApply}
+                            askLoanAdvisor={askLoanAdvisor}
+                            localLoanRemark={localLoanRemark}
                             isRTL={isRTL}
                             isLayoutRTL={isLayoutRTL}
                         />

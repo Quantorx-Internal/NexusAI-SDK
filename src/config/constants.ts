@@ -20,6 +20,7 @@ type RuntimeEnvironment = Partial<Record<
     | 'TTS_REWRITE'
     | 'TTS_REDACT'
     | 'TTS_NORMALISE_LOUDNESS'
+    | 'ADVISOR_MODEL'
     | 'MOCK_OTP'
     | 'MOCK_DELAY_MS',
     string
@@ -120,6 +121,15 @@ export const ENV = {
         // cannot perform.
         false
     ),
+
+    /**
+     * The loan card's advisor: the fast model that turns the app's figures
+     * into one remark when the user settles on a plan. Used only when no API
+     * callback answers /api/chat/advise and an OpenRouter key is set.
+     */
+    ADVISOR_MODEL: runtimeEnvironment.ADVISOR_MODEL
+        || process.env.EXPO_PUBLIC_ADVISOR_MODEL
+        || 'openai/gpt-6-luna',
 
     MOCK_OTP: runtimeEnvironment.MOCK_OTP || process.env.EXPO_PUBLIC_MOCK_OTP,
     MOCK_DELAY_MS: Number(runtimeEnvironment.MOCK_DELAY_MS || process.env.EXPO_PUBLIC_MOCK_DELAY_MS || 0),

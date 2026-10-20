@@ -18,8 +18,11 @@ import {
     TransferSuccessBlock,
     RecommendationsBlock,
     TransactionListBlock,
-    ExchangeRateBlock
+    ExchangeRateBlock,
+    LoanOffersBlock,
+    LoanPlanBlock,
 } from './blocks';
+import type { LoanPlanChoice, AskAdvisor } from './blocks';
 import {
     Account,
     Beneficiary,
@@ -38,7 +41,10 @@ import {
     ProductRecommendation,
     ProductRecommendationPayload,
     ExchangeRate,
-    Transaction
+    Transaction,
+    LoanOfferUI,
+    LoanOptionsUI,
+    ChatResolution,
 } from '../../types';
 
 interface SimpleMarkdownRendererProps {
@@ -62,6 +68,14 @@ interface SimpleMarkdownRendererProps {
     transactions?: Transaction[];
     transactionsTitle?: string;
     transactionsUnavailable?: boolean;
+    loanOffer?: LoanOfferUI;
+    loanOptions?: LoanOptionsUI;
+    /** How the user answered this message's loan card. */
+    loanResolution?: ChatResolution;
+    /** The newest reply: loan cards take input. Older ones are for reading. */
+    isLatest?: boolean;
+    /** A request is in flight: loan cards do not take taps. */
+    disabled?: boolean;
     locale?: 'en' | 'ar';
     onAction?: (action: string) => void;
     onAccountSelect?: (account: Account) => void;
@@ -78,6 +92,10 @@ interface SimpleMarkdownRendererProps {
     onRecommendationApply?: (recommendation: ProductRecommendation) => void;
     onRecommendationDetails?: (recommendation: ProductRecommendation) => void;
     onTransactionSelect?: (transaction: Transaction) => void;
+    onLoanOpen?: (productId: string) => void;
+    onLoanApply?: (choice: LoanPlanChoice) => void;
+    askLoanAdvisor?: AskAdvisor;
+    localLoanRemark?: (amount: number, months: number) => string | null;
     isRTL?: boolean;
     isLayoutRTL?: boolean;
 }
@@ -126,6 +144,11 @@ export function SimpleMarkdownRenderer({
     transactions = [],
     transactionsTitle,
     transactionsUnavailable,
+    loanOffer,
+    loanOptions,
+    loanResolution,
+    isLatest = false,
+    disabled = false,
     locale = 'en',
     onAccountSelect,
     onBeneficiarySelect,
@@ -141,6 +164,10 @@ export function SimpleMarkdownRenderer({
     onRecommendationApply,
     onRecommendationDetails,
     onTransactionSelect,
+    onLoanOpen,
+    onLoanApply,
+    askLoanAdvisor,
+    localLoanRemark,
     isRTL = false,
     isLayoutRTL = false,
 }: SimpleMarkdownRendererProps) {
@@ -162,6 +189,8 @@ export function SimpleMarkdownRenderer({
     const hasRecommendations = (productRecommendation?.recommendations?.length || 0) > 0;
     const hasExchangeRate = isObject(exchangeRate) && typeof (exchangeRate as any).rate === 'number';
     const hasTransactions = transactions.length > 0 || Boolean(transactionsUnavailable);
+    const hasLoanOffer = isObject(loanOffer) && isObject((loanOffer as LoanOfferUI).terms);
+    const hasLoanOptions = isObject(loanOptions) && Array.isArray((loanOptions as LoanOptionsUI).available);
 
     const mkStyles = {
         ...markdownStyles,
@@ -233,7 +262,7 @@ export function SimpleMarkdownRenderer({
             ) : null}
 
             {/* Blocks */}
-            {(hasTransferPreview || hasTransferSuccess || hasAccounts || hasBeneficiaries || hasCards || hasCardPreview || hasCardActionSuccess || hasSpendingBreakdown || hasSpendingInsights || hasSubscriptions || hasBills || hasBillPaymentPreview || hasBillPaymentSuccess || hasTicketCreated || hasRecommendations || hasTransactions || hasExchangeRate) && (
+            {(hasTransferPreview || hasTransferSuccess || hasAccounts || hasBeneficiaries || hasCards || hasCardPreview || hasCardActionSuccess || hasSpendingBreakdown || hasSpendingInsights || hasSubscriptions || hasBills || hasBillPaymentPreview || hasBillPaymentSuccess || hasTicketCreated || hasRecommendations || hasTransactions || hasExchangeRate || hasLoanOffer || hasLoanOptions) && (
                 <View style={styles.blocksContainer}>
                     {/* Render transfer preview if present */}
                     {hasTransferPreview && transferPreview && (
@@ -358,6 +387,31 @@ export function SimpleMarkdownRenderer({
                         <TicketCreatedBlock
                             ticket={ticketCreated}
                             locale={locale}
+                        />
+                    )}
+
+                    {/* The loan card: one loan to shape and apply for. */}
+                    {hasLoanOffer && loanOffer && (
+                        <LoanPlanBlock
+                            offer={loanOffer}
+                            locale={locale}
+                            live={isLatest && !disabled}
+                            resolution={loanResolution?.prompt === 'loan' ? loanResolution : undefined}
+                            onApply={onLoanApply}
+                            askAdvisor={askLoanAdvisor}
+                            localRemark={localLoanRemark}
+                        />
+                    )}
+
+                    {/* The loan list: what the user can apply for, and what not yet. */}
+                    {hasLoanOptions && loanOptions && (
+                        <LoanOffersBlock
+                            options={loanOptions}
+                            locale={locale}
+                            live={isLatest}
+                            disabled={disabled}
+                            chosen={loanResolution?.prompt === 'loanOptions' ? loanResolution.productId : undefined}
+                            onOpen={onLoanOpen}
                         />
                     )}
 

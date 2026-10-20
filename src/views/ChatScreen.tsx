@@ -262,12 +262,15 @@ export function ChatScreen() {
         if (/spend|مصاريف|إنفاق/.test(q)) return isAr ? 'أحلل إنفاقك' : 'Analysing your spending';
         if (/transaction|حرك/.test(q)) return isAr ? 'أجمع حركاتك' : 'Gathering your transactions';
         if (/balance|رصيد/.test(q)) return isAr ? 'أراجع أرصدتك' : 'Checking your balances';
+        if (/loan|financ|mortgage|apply|قرض|قروض|تمويل|تقديم|أقدم|اقدم/.test(q)) return isAr ? 'أراجع خيارات التمويل' : 'Checking financing options';
         return isAr ? 'أعمل على طلبك' : 'Working on it';
     }, [messages, locale]);
 
     // The assistant asks for a value (an amount, an OTP) on its latest turn only —
     // an older request is stale the moment it has been answered or abandoned.
+    // Loan cards follow the same rule: only the newest reply's cards take input.
     const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
+    const lastAssistantId = lastAssistant?.id;
     const pendingPrompt =
         !isLoading && lastAssistant === messages[messages.length - 1]
             ? lastAssistant?.ui
@@ -409,6 +412,8 @@ export function ChatScreen() {
                             <ChatMessage
                                 message={item}
                                 {...handlers}
+                                isLatest={item.id === lastAssistantId}
+                                disabled={isLoading}
                                 onSpeechToggle={handleSpeechToggle}
                                 isSpeaking={isSpeaking}
                                 isLoadingSpeech={isLoadingSpeech}

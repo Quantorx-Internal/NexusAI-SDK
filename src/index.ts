@@ -10,8 +10,11 @@ export { LocaleProvider, useLocale } from './contexts/LocaleContext';
 export type { Locale } from './contexts/LocaleContext';
 
 // Services
-export { ChatService } from './services/ChatService';
+export { ChatService, composeAgentInput, eventNote, normaliseUi } from './services/ChatService';
+export type { SendMessageOptions } from './services/ChatService';
 export { TransactionService } from './services/TransactionService';
+export { LoanAdvisorService, cleanRemark } from './services/LoanAdvisorService';
+export type { AdvisorQuery, AdvisorRemark, AdvisorPlan } from './services/LoanAdvisorService';
 export { VoiceService } from './services/VoiceService';
 export type {
     SpeechAudioChunk,
@@ -44,6 +47,31 @@ export { SimpleMarkdownRenderer } from './components/Chat/SimpleMarkdownRenderer
 export { ComposerPrompt } from './components/Chat/ComposerPrompt';
 export { Composer, SuggestionChips, ListeningOverlay, Waveform } from './components/Chat/Composer';
 export { computeSuggestions, matchEntitySlot } from './lib/suggestions';
+
+// Loans: the arithmetic the loan card prices from, and the offline eligibility check
+export {
+    quoteLoan,
+    fitLoan,
+    nudge,
+    snap,
+    adviseLoan,
+    loanReach,
+    describeLoan,
+    rateLabel,
+    tenureLabel,
+    tenureRange,
+} from './lib/loans';
+export type { LoanQuote, LoanAdvice, LoanPlan } from './lib/loans';
+export {
+    optionsFor,
+    loanOffer,
+    blockersFor,
+    demoLoanOptions,
+    demoBudget,
+    demoProfile,
+    findLoanProduct,
+} from './lib/loanOptions';
+export { mockLoanProducts } from './data/products';
 export type { Suggestion, EntityCandidate, EntityData, SlotMatch, EntitySlot } from './lib/suggestions';
 
 // Block components — all fifteen in-chat cards
@@ -74,10 +102,14 @@ export {
     ResultBand,
     ResultBody,
     RowDivider,
+    AffordabilityBar,
+    Adjuster,
+    InlineAlert,
 } from './components/ui';
+export type { AdjusterTick, AffordabilityFit } from './components/ui';
 
 // Design tokens — the single source for colour, type, spacing and radii
-export { tokens, color, type as typeScale, space, layout, radius, size, text } from './theme/tokens';
+export { tokens, color, type as typeScale, space, layout, radius, size, text, loan as loanTokens } from './theme/tokens';
 export type { Tone, TypeRole } from './theme/tokens';
 
 // Types
