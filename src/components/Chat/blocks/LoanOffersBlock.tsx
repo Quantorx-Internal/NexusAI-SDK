@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Check } from 'lucide-react-native';
 import { Card, StatusPill, IconBox, iconOn, EmptyState } from '../../ui';
 import { color, border, layout, loan, radius, size, text, iconStroke, Tone, toneSet } from '../../../theme/tokens';
-import { quoteLoan, tenureLabel } from '../../../lib/loans';
+import { tenureLabel } from '../../../lib/loans';
 import { LoanOption, LoanOptionsUI } from '../../../types';
 import { productVisual } from './productVisuals';
 import { CURRENCY_WORD, LOAN_LIST_WORDS, LoanLocale, money, plain } from './loanWords';

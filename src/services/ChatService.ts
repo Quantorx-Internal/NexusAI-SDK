@@ -978,7 +978,7 @@ function getMockLoanResponse(message: string, sessionId: string, locale: string,
         );
     }
 
-    const mentionsLoans = /\b(loans?|financ|borrow|mortgage)/.test(lower) || /قرض|قروض|تمويل|سلفة|استلف|أستلف/.test(message);
+    const mentionsLoans = /\b(loans?|financ(e|ing)|borrow|mortgage)\b/.test(lower) || /قرض|قروض|تمويل|سلفة|استلف|أستلف/.test(message);
     if (!mentionsLoans) return null;
 
     const productId = loanProductIn(message);
