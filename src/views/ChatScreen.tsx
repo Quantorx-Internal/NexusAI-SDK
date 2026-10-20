@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import { View, StyleSheet, FlatList, KeyboardAvoidingView, Platform, Text, TouchableOpacity, I18nManager, Modal, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Volume2, VolumeX, Globe, Sparkles, Plus, Bot, Check, ChevronDown } from 'lucide-react-native';
+import { Volume2, VolumeX, Globe, Sparkles, Plus, BrainCircuit, Check, ChevronDown } from 'lucide-react-native';
 import { ChatMessage } from '../components/Chat/ChatMessage';
 import { Composer } from '../components/Chat/Composer';
 import { ComposerPrompt } from '../components/Chat/ComposerPrompt';
@@ -355,7 +355,7 @@ export function ChatScreen() {
             <>
             {/* Header */}
             <View style={dynamicStyles.header}>
-                {/* Left section: Bot avatar + Title */}
+                {/* Left section: assistant avatar + Title */}
                 <View style={[styles.headerLeftSection, isLayoutRTL && styles.headerLeftSectionRTL]}>
                     {/* The robot opens Preferences. An icon-as-button has no other
                         affordance, so a brand-300 ring stays on it until the user
@@ -376,7 +376,7 @@ export function ChatScreen() {
                             pressed && { transform: [{ scale: pref.entryPressedScale }] },
                         ]}
                     >
-                        <Bot size={18} color={color.brand[600]} />
+                        <BrainCircuit size={18} color={color.brand[600]} />
                     </Pressable>
                     <View style={[styles.titleRow, isLayoutRTL && styles.titleRowRTL]}>
                         <Text style={dynamicStyles.headerTitle} numberOfLines={1}>{assistantName(theme, locale)}</Text>
@@ -449,7 +449,7 @@ export function ChatScreen() {
                                     onPress={() => handleVoiceSelect(voice)}
                                 >
                                     <View style={[styles.voiceOptionAvatar, { backgroundColor: color.brand[50] }, isSelected && [styles.voiceOptionAvatarSelected, { backgroundColor: color.brand[600] }]]}>
-                                        <Bot size={18} color={isSelected ? '#fff' : color.brand[600]} />
+                                        <BrainCircuit size={18} color={isSelected ? '#fff' : color.brand[600]} />
                                     </View>
                                     <View style={styles.voiceOptionTextWrap}>
                                         <Text style={[styles.voiceOptionName, isRTL && styles.textRTL]}>

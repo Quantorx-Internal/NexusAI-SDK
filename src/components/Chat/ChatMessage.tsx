@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator, I18nManager } from 'react-native';
-import { Bot, User, Volume2, VolumeX } from 'lucide-react-native';
+import { BrainCircuit, User, Volume2, VolumeX } from 'lucide-react-native';
 import { ChatMessage as ChatMessageType, Account, Beneficiary, Card, Bill, SpendingBreakdown, Subscription, ProductRecommendation, Transaction, LoanOfferUI } from '../../types';
 import { SimpleMarkdownRenderer } from './SimpleMarkdownRenderer';
 import type { LoanPlanChoice, AdvisorAsk } from './blocks';
@@ -239,7 +239,7 @@ export function ChatMessage({
                 {isUser ? (
                     <User size={16} color="#fff" />
                 ) : (
-                    <Bot size={16} color={color.brand[600]} />
+                    <BrainCircuit size={16} color={color.brand[600]} />
                 )}
             </View>
 

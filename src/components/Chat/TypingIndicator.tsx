@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import { Bot } from 'lucide-react-native';
+import { BrainCircuit } from 'lucide-react-native';
 import { color, composer, radius, layout, size, text, iconStroke } from '../../theme/tokens';
 
 /**
@@ -52,7 +52,7 @@ export function TypingIndicator({ isVisible, status, locale = 'en' }: TypingIndi
     return (
         <View style={styles.container}>
             <View style={[styles.avatar, { backgroundColor: color.brand[50] }]}>
-                <Bot size={16} color={color.brand[600]} strokeWidth={iconStroke} />
+                <BrainCircuit size={16} color={color.brand[600]} strokeWidth={iconStroke} />
             </View>
 
             <View style={styles.bubble}>

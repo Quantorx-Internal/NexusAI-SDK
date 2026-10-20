@@ -10,7 +10,7 @@ import {
     KeyboardAvoidingView,
     Platform,
 } from 'react-native';
-import { Bot, Sparkles, ChevronLeft, ChevronRight, Check, RotateCcw } from 'lucide-react-native';
+import { BrainCircuit, Sparkles, ChevronLeft, ChevronRight, Check, RotateCcw } from 'lucide-react-native';
 import { Button } from '../components/ui';
 import { color, layout, radius, size, text, iconStroke, preferences as pref } from '../theme/tokens';
 import {
@@ -332,7 +332,7 @@ function Preview({ theme, locale, words }: { theme: Theme; locale: Locale; words
         <View style={styles.preview}>
             <View style={styles.previewHeader}>
                 <View style={[styles.previewAvatar, { backgroundColor: c.primarySubtle }]}>
-                    <Bot size={size.icon.md} color={c.primary} strokeWidth={iconStroke} />
+                    <BrainCircuit size={size.icon.md} color={c.primary} strokeWidth={iconStroke} />
                 </View>
                 <Text style={[text('rowValue'), styles.previewName]} numberOfLines={1}>
                     {assistantName(theme, locale)}
