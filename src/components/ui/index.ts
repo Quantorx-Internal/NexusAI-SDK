@@ -12,3 +12,8 @@ export { RowDivider } from './RowDivider';
 export { InstrumentSurface } from './InstrumentSurface';
 export type { InstrumentPalette } from './InstrumentSurface';
 export { PageDots } from './PageDots';
+export { AffordabilityBar } from './AffordabilityBar';
+export type { AffordabilityFit } from './AffordabilityBar';
+export { Adjuster } from './Adjuster';
+export type { AdjusterTick } from './Adjuster';
+export { InlineAlert } from './InlineAlert';

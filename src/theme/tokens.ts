@@ -229,6 +229,38 @@ export const instrument = {
     onSurfaceStrong: '#FFFFFF',
 } as const;
 
+/**
+ * Loan cards (design §5). The two loan cards introduce a handful of metrics
+ * the token sheet did not have: a dimmed decimal part on the hero, a 60pt
+ * offer row, the stepper and the slider of the adjuster, and the advisor's
+ * icon. Everything else on them resolves to the tokens above.
+ */
+export const loan = {
+    /** The decimals of the hero installment: 18pt beside the 28pt integer. */
+    heroDecimals: 18,
+    /** An offer row in the loan list. */
+    row: 60,
+    /** The featured offer's own inset. */
+    featuredPadding: 14,
+    /** The affordability bar: 8h, r3, 2px between segments. */
+    bar: 8,
+    barGap: 2,
+    /** Legend swatch: 8pt, r2. */
+    swatch: 8,
+    /** The –/+ stepper: 36pt, r10, border-strong, with a 44pt hit area via hitSlop. */
+    stepper: 36,
+    stepperValueMinWidth: 104,
+    /** The slider: 28pt tall, 4pt track, 24pt thumb with a 2pt brand ring. */
+    slider: 28,
+    track: 4,
+    thumb: 24,
+    thumbRing: 2,
+    /** The advisor note's sparkles box. */
+    advisorIcon: 28,
+    /** Hero and figures dim to this while a quote or an application is in flight. */
+    recalculatingOpacity: 0.5,
+} as const;
+
 /** Icons are lucide-react-native at strokeWidth 2. */
 export const iconStroke = 2;
 
@@ -261,6 +293,7 @@ export const tokens = {
     border,
     size,
     elevation,
+    loan,
 };
 
 export default tokens;
