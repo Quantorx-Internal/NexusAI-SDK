@@ -21,6 +21,7 @@ type RuntimeEnvironment = Partial<Record<
     | 'TTS_REDACT'
     | 'TTS_NORMALISE_LOUDNESS'
     | 'ADVISOR_MODEL'
+    | 'CHAT_AGENT'
     | 'MOCK_OTP'
     | 'MOCK_DELAY_MS',
     string
@@ -130,6 +131,18 @@ export const ENV = {
     ADVISOR_MODEL: runtimeEnvironment.ADVISOR_MODEL
         || process.env.EXPO_PUBLIC_ADVISOR_MODEL
         || 'openai/gpt-6-luna',
+
+    /**
+     * Who answers the chat. 'api' (default): POST {API_CALLBACK_URL}/api/chat,
+     * the in-app agent with the loan tools and per-session memory. 'n8n': the
+     * old workflow at N8N_WEBHOOK_URL. Whichever is chosen but unreachable
+     * falls back to the other, then to the built-in mock flows.
+     */
+    CHAT_AGENT: (
+        runtimeEnvironment.CHAT_AGENT
+        || process.env.EXPO_PUBLIC_CHAT_AGENT
+        || 'api'
+    ) as 'api' | 'n8n',
 
     MOCK_OTP: runtimeEnvironment.MOCK_OTP || process.env.EXPO_PUBLIC_MOCK_OTP,
     MOCK_DELAY_MS: Number(runtimeEnvironment.MOCK_DELAY_MS || process.env.EXPO_PUBLIC_MOCK_DELAY_MS || 0),

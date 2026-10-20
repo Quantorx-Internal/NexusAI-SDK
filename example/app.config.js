@@ -21,6 +21,7 @@ const runtimeKeys = [
   'TTS_REDACT',
   'TTS_NORMALISE_LOUDNESS',
   'ADVISOR_MODEL',
+  'CHAT_AGENT',
   'MOCK_OTP',
   'MOCK_DELAY_MS',
 ];

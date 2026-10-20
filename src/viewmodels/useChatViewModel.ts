@@ -408,9 +408,27 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
         sendMessage(action);
     }, [sendMessage]);
 
-    const handleAccountSelect = useCallback((account: Account) => {
-        sendMessage(account.name);
+    const isAr = locale === 'ar';
+    const nameOf = (item: { name?: string; nameAr?: string } | undefined, fallback = '') =>
+        (isAr ? item?.nameAr : item?.name) || item?.name || fallback;
+
+    /** A tap in a list card: the words the user would say, plus the ID the agent needs. */
+    const select = useCallback((kind: 'account' | 'beneficiary' | 'card' | 'bill', id: string, name: string, text: string) => {
+        void sendMessage(text, {
+            event: { type: 'selection', selections: [{ kind, id, name }] },
+            display: name,
+        });
     }, [sendMessage]);
+
+    /** A button on a preview card: confirm, edit or cancel. */
+    const act = useCallback((card: 'transferPreview' | 'cardPreview' | 'billPaymentPreview', action: 'confirm' | 'edit' | 'cancel', text: string, display: string) => {
+        void sendMessage(text, { event: { type: 'action', card, action }, display });
+    }, [sendMessage]);
+
+    const handleAccountSelect = useCallback((account: Account) => {
+        select('account', account.id, nameOf(account, account.name), account.name);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [select, isAr]);
 
     const startRecording = useCallback(async () => {
         if (isDisposedRef.current) {
@@ -604,26 +622,32 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
         handlers: {
             onAction: handleAction,
             onAccountSelect: handleAccountSelect,
-            onBeneficiarySelect: (b: any) => sendMessage(`${b.name}`),
-            onTransferConfirm: () => sendMessage("Confirm the transfer"),
-            onTransferEdit: () => sendMessage("I want to edit the transfer details"),
-            onTransferCancel: () => sendMessage("Cancel the transfer"),
+            onBeneficiarySelect: (b: any) => select('beneficiary', b.id, nameOf(b, b.name), `${b.name}`),
+            onTransferConfirm: () => act('transferPreview', 'confirm', 'Confirm the transfer', isAr ? 'تأكيد التحويل' : 'Confirm the transfer'),
+            onTransferEdit: () => act('transferPreview', 'edit', 'I want to edit the transfer details', isAr ? 'أبي أعدّل التحويل' : 'Edit the transfer'),
+            onTransferCancel: () => act('transferPreview', 'cancel', 'Cancel the transfer', isAr ? 'إلغاء التحويل' : 'Cancel the transfer'),
             // Card handlers
-            onCardSelect: (card: any) => sendMessage(`Manage my ${card.name}`),
-            onCardActionConfirm: () => sendMessage("Confirm the card action"),
-            onCardActionCancel: () => sendMessage("Cancel the card action"),
+            onCardSelect: (card: any) => select('card', card.id, nameOf(card, card.name), `Manage my ${card.name}`),
+            onCardActionConfirm: () => act('cardPreview', 'confirm', 'Confirm the card action', isAr ? 'تأكيد' : 'Confirm'),
+            onCardActionCancel: () => act('cardPreview', 'cancel', 'Cancel the card action', isAr ? 'إلغاء' : 'Cancel'),
             // Bill handlers
-            onBillSelect: (bill: any) => sendMessage(`Pay my ${bill.providerName} bill`),
-            onBillPaymentConfirm: () => sendMessage("Confirm the bill payment"),
-            onBillPaymentCancel: () => sendMessage("Cancel the bill payment"),
+            onBillSelect: (bill: any) => select('bill', bill.id, (isAr ? bill.providerNameAr : bill.providerName) || bill.providerName, `Pay my ${bill.providerName} bill`),
+            onBillPaymentConfirm: () => act('billPaymentPreview', 'confirm', 'Confirm the bill payment', isAr ? 'تأكيد الدفع' : 'Confirm payment'),
+            onBillPaymentCancel: () => act('billPaymentPreview', 'cancel', 'Cancel the bill payment', isAr ? 'إلغاء الدفع' : 'Cancel payment'),
             // Recommendation handlers
             onRecommendationApply: (rec: any) => {
-                const name = locale === 'ar' ? rec?.product?.nameAr : rec?.product?.name;
-                sendMessage(`I want to apply for ${name || rec?.product?.name}`);
+                const name = nameOf(rec?.product);
+                void sendMessage(`I want to apply for ${name}`, {
+                    event: { type: 'action', card: 'product', action: 'apply', id: rec?.product?.id },
+                    display: isAr ? `أبي أقدم على ${name}` : `Apply for ${name}`,
+                });
             },
             onRecommendationDetails: (rec: any) => {
-                const name = locale === 'ar' ? rec?.product?.nameAr : rec?.product?.name;
-                sendMessage(`Tell me more about ${name || rec?.product?.name}`);
+                const name = nameOf(rec?.product);
+                void sendMessage(`Tell me more about ${name}`, {
+                    event: { type: 'action', card: 'product', action: 'learnMore', id: rec?.product?.id },
+                    display: isAr ? `وش تفاصيل ${name}؟` : `Tell me more about ${name}`,
+                });
             },
             onTransactionSelect: (tx: any) =>
                 sendMessage(`Tell me more about the ${tx.merchantName} transaction`),

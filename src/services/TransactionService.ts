@@ -11,7 +11,9 @@ import { TransactionListQuery, TransactionListResult } from '../types';
  */
 export class TransactionService {
     static async fetchTransactions(
-        query: TransactionListQuery
+        query: TransactionListQuery,
+        /** The chat session: the server draws the salary rows per customer. */
+        sessionId?: string | null
     ): Promise<TransactionListResult | null> {
         const base = ENV.API_CALLBACK_URL;
         if (!base) {
@@ -43,6 +45,7 @@ export class TransactionService {
                 params.append(key, String(value));
             }
         });
+        if (sessionId) params.append('sessionId', sessionId);
 
         // The base may or may not already end in /api: constants.ts resolves
         // API_CALLBACK_URL from NEXT_PUBLIC_API_URL / EXPO_PUBLIC_API_URL (which
@@ -68,6 +71,7 @@ export class TransactionService {
             return {
                 transactions,
                 count: typeof data?.count === 'number' ? data.count : transactions.length,
+                shown: typeof data?.shown === 'number' ? data.shown : transactions.length,
                 totalIn: typeof data?.totalIn === 'number' ? data.totalIn : 0,
                 totalOut: typeof data?.totalOut === 'number' ? data.totalOut : 0,
                 currency: data?.currency || 'SAR',

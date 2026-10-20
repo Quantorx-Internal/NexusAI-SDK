@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { CreditCard, Snowflake, Globe, Wifi, KeyRound, RefreshCw, Info } from 'lucide-react-native';
+import { CreditCard, Snowflake, Globe, Wifi, KeyRound, RefreshCw, Info, Nfc } from 'lucide-react-native';
 import { Card, DetailRow, ActionRow, StatusPill, IconBox, iconOn } from '../../ui';
 import { color, layout, radius, size, text, iconStroke, Tone } from '../../../theme/tokens';
 import { formatCurrency } from '../../../lib/utils';
@@ -34,6 +34,7 @@ const actionLabels: Record<CardAction, { en: string; ar: string }> = {
     set_transaction_limit: { en: 'Set transaction limit', ar: 'تعيين حد المعاملة' },
     toggle_international: { en: 'International payments', ar: 'المدفوعات الدولية' },
     toggle_online: { en: 'Online payments', ar: 'المدفوعات عبر الإنترنت' },
+    toggle_contactless: { en: 'Contactless payments', ar: 'الدفع اللاتلامسي' },
     request_replacement: { en: 'Request replacement', ar: 'طلب بطاقة بديلة' },
     reset_pin: { en: 'Reset PIN', ar: 'إعادة تعيين الرمز السري' },
 };
@@ -45,6 +46,7 @@ const actionIcons: Record<CardAction, { Icon: any; tone: Tone }> = {
     set_transaction_limit: { Icon: CreditCard, tone: 'brandTint' },
     toggle_international: { Icon: Globe, tone: 'brandTint' },
     toggle_online: { Icon: Wifi, tone: 'brandTint' },
+    toggle_contactless: { Icon: Nfc, tone: 'brandTint' },
     request_replacement: { Icon: RefreshCw, tone: 'brandTint' },
     reset_pin: { Icon: KeyRound, tone: 'brandTint' },
 };
@@ -84,7 +86,7 @@ export function CardPreviewBlock({
     const money = (value: number) => formatCurrency(value, 'SAR', locale);
 
     const isLimit = action === 'set_daily_limit' || action === 'set_transaction_limit';
-    const isToggle = action === 'toggle_international' || action === 'toggle_online';
+    const isToggle = action === 'toggle_international' || action === 'toggle_online' || action === 'toggle_contactless';
     const isFreeze = action === 'freeze' || action === 'unfreeze';
     // A confirmed card stops asking for a decision: neutral border, success pill.
     const done = Boolean(confirmedLabel);

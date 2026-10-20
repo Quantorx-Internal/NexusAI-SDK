@@ -28,6 +28,7 @@ const pastTense: Record<CardAction, { en: string; ar: string }> = {
     set_transaction_limit: { en: 'Transaction limit updated', ar: 'تم تحديث حد المعاملة' },
     toggle_international: { en: 'International payments updated', ar: 'تم تحديث المدفوعات الدولية' },
     toggle_online: { en: 'Online payments updated', ar: 'تم تحديث المدفوعات عبر الإنترنت' },
+    toggle_contactless: { en: 'Contactless payments updated', ar: 'تم تحديث الدفع اللاتلامسي' },
     request_replacement: { en: 'Replacement requested', ar: 'تم طلب بطاقة بديلة' },
     reset_pin: { en: 'PIN reset', ar: 'تم إعادة تعيين الرمز السري' },
 };

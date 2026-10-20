@@ -201,8 +201,34 @@ export function ChatScreen() {
         resetChat();
     };
 
+    /**
+     * Text from the composer, the keypad, the OTP card or a quick-reply chip.
+     * The last three carry a structured event so the agent gets a clean
+     * value rather than a guess, and the OTP bubble never shows the code.
+     */
     const handleSend = (text: string) => {
         stopAllSpeech(); // Stop all speech (current + pending) when user sends a message
+        const prompt = pendingPromptRef.current;
+        if (prompt?.requestOtp && /^\d{4,8}$/.test(text.trim())) {
+            sendMessage(text.trim(), {
+                event: { type: 'otp', verified: true },
+                display: locale === 'ar' ? 'تم إدخال رمز التحقق' : 'Verification code entered',
+            });
+            return;
+        }
+        if (prompt?.requestAmount) {
+            const match = text.trim().match(/^([\d.]+)\s+([A-Z]{3})$/);
+            const amount = match ? parseFloat(match[1]) : NaN;
+            if (match && Number.isFinite(amount) && amount > 0) {
+                sendMessage(text, { event: { type: 'amount', amount, currency: match[2] } });
+                return;
+            }
+        }
+        const quick = quickRepliesRef.current.find(a => a.action === text);
+        if (quick) {
+            sendMessage(text, { event: { type: 'action', card: 'quickReply', action: quick.action, id: quick.id } });
+            return;
+        }
         sendMessage(text);
     };
 
@@ -275,6 +301,29 @@ export function ChatScreen() {
         !isLoading && lastAssistant === messages[messages.length - 1]
             ? lastAssistant?.ui
             : undefined;
+
+    // handleSend is not memoised; refs let it read the latest prompt without re-creating the composer.
+    const pendingPromptRef = useRef(pendingPrompt);
+    pendingPromptRef.current = pendingPrompt;
+    /** The agent's quick replies on its newest turn, as composer chips. */
+    const quickReplies = useMemo(
+        () => (pendingPrompt?.actions && Array.isArray(pendingPrompt.actions) ? pendingPrompt.actions : []),
+        [pendingPrompt]
+    );
+    const quickRepliesRef = useRef(quickReplies);
+    quickRepliesRef.current = quickReplies;
+    const chips = useMemo(
+        () => [
+            ...quickReplies.map(a => ({
+                id: `quick-${a.id}`,
+                label: (locale === 'ar' ? a.labelAr : a.label) || a.label,
+                message: a.action,
+                primary: true,
+            })),
+            ...suggestions,
+        ],
+        [quickReplies, suggestions, locale]
+    );
 
     // Dynamic styles based on RTL
     const dynamicStyles = {
@@ -452,7 +501,7 @@ export function ChatScreen() {
                     onStartRecording={handleStartRecording}
                     onStopRecording={stopRecording}
                     onCancelRecording={cancelRecording}
-                    suggestions={suggestions}
+                    suggestions={chips}
                     entityData={entityData}
                     locale={locale}
                     isRTL={isRTL}

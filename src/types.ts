@@ -107,7 +107,7 @@ export interface ChatMessage {
     spendingInsights?: SpendingInsight[];
     // Resolved transaction rows for ui.transactionList
     transactions?: Transaction[];
-    transactionSummary?: { count: number; totalIn: number; totalOut: number; currency: string };
+    transactionSummary?: { count: number; shown?: number; totalIn: number; totalOut: number; currency: string };
     /** ui.transactionList was sent but could not be resolved. */
     transactionsUnavailable?: boolean;
     /** Set by the app once the user acts on this message's loan card. */
@@ -121,10 +121,32 @@ export interface ChatMessage {
  * user's text as a machine note, so the agent gets IDs and terms, not guesses.
  */
 export type ChatEvent =
-    /** The user tapped a loan in the loan list. */
-    | { type: 'action'; card: 'loanOptions'; action: 'open'; id: string }
+    /** The user tapped these in list cards. The IDs are final. */
+    | { type: 'selection'; selections: ChatSelection[] }
+    /** A button on a card: confirm/edit/cancel on a preview, apply/learnMore on an offer, open on a loan, a quick reply. */
+    | {
+        type: 'action';
+        card: 'transferPreview' | 'cardPreview' | 'billPaymentPreview' | 'product' | 'loanOptions' | 'quickReply';
+        action: string;
+        id?: string;
+    }
+    /** The code typed on the OTP card. The code itself travels as the message text; the server checks it. */
+    | { type: 'otp'; verified: true }
+    /** The figure typed on the amount keypad. */
+    | { type: 'amount'; amount: number; currency: string }
     /** Apply on the loan card, with the amount and tenure the user set. */
     | { type: 'loan'; productId: string; amount: number; months: number };
+
+/** The lists a user can pick from inside the chat. */
+export type PickerKind = 'account' | 'beneficiary' | 'card' | 'bill';
+
+/** One thing the user tapped in a list card. */
+export interface ChatSelection {
+    kind: PickerKind;
+    id: string;
+    /** The name in the language the user is reading. */
+    name: string;
+}
 
 /** How the user answered the loan card in an assistant message. */
 export interface ChatResolution {
@@ -245,6 +267,7 @@ export type CardAction =
     | 'set_transaction_limit'
     | 'toggle_international'
     | 'toggle_online'
+    | 'toggle_contactless'
     | 'request_replacement'
     | 'reset_pin';
 
@@ -446,6 +469,8 @@ export interface TransactionListResult {
     transactions: Transaction[];
     /** Total matching the filter — larger than `transactions.length` when limited. */
     count: number;
+    /** How many rows came back. */
+    shown?: number;
     totalIn: number;
     totalOut: number;
     currency: string;

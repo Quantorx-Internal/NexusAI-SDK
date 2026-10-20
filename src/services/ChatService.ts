@@ -966,9 +966,10 @@ function getMockLoanResponse(message: string, sessionId: string, locale: string,
 
     // The user tapped a loan in the list: open its card.
     if (event?.type === 'action' && event.card === 'loanOptions') {
-        const offer = loanOffer(event.id);
+        const picked = event.id ?? '';
+        const offer = loanOffer(picked);
         if (offer) return reply(cardIntro(offer), { loanOffer: { ...offer, offline: true } });
-        const product = findLoanProduct(event.id);
+        const product = findLoanProduct(picked);
         const name = product ? (isAr ? product.nameAr : product.name) || product.name : event.id;
         return reply(
             isAr
@@ -1009,12 +1010,38 @@ function getMockLoanResponse(message: string, sessionId: string, locale: string,
  */
 export function eventNote(event: ChatEvent | null | undefined): string {
     if (!event) return '';
+    if (event.type === 'selection') {
+        const list = event.selections.map(s => `${s.kind}=${s.id} (${s.name})`).join('; ');
+        return `[UI selection] ${list}. The user tapped these cards in the app. These IDs are final: use them as they are, do not show these lists again, and do not ask which one.`;
+    }
+    if (event.type === 'otp') {
+        return '[UI otp] The user typed this code into the OTP card and the app already checked it. Call the pending action tool with this code now. Do not ask for the code again. requestOtp must be false.';
+    }
+    if (event.type === 'amount') {
+        return `[UI amount] amount=${event.amount} currency=${event.currency}. The user entered this in the amount card. Use it as the amount. Do not ask for the amount again. requestAmount must be null.`;
+    }
+    if (event.type === 'action' && event.card === 'product') {
+        return `[UI action] ${event.action} on product ${event.id || ''}. Answer in the message. productRecommendation must be null.`;
+    }
+    if (event.type === 'action' && event.card === 'quickReply') {
+        return `[UI action] quick reply "${event.id || event.action}" tapped.`;
+    }
+    if (event.type === 'action' && event.action === 'confirm') {
+        return `[UI action] confirm on ${event.card}. The user tapped Confirm on the card. Do not show that card again. Continue to the next step of the flow.`;
+    }
+    if (event.type === 'action' && event.action === 'cancel') {
+        return `[UI action] cancel on ${event.card}. The user tapped Cancel. Stop the flow, say it is cancelled, and send no cards.`;
+    }
+    if (event.type === 'action' && event.action === 'edit') {
+        return `[UI action] edit on ${event.card}. The user tapped Edit. Ask what to change. Send a new preview only once you have the new details.`;
+    }
     if (event.type === 'loan') {
         return `[UI loan] apply on ${event.productId}: amount=${event.amount} SAR, months=${event.months}. The user set these terms on the loan card and tapped Apply. Call submit_loan_application now: it prices the plan, then files it or tells you to advise first. Do not call quote_loan and do not ask for the amount or tenure again.`;
     }
     if (event.type === 'action' && event.card === 'loanOptions') {
         return `[UI action] open on loanOptions ${event.id}. The user tapped this loan in the loan list. If it has a loan card, call quote_loan for it; else explain it in one or two lines. showLoanOptions must be false.`;
     }
+    if (event.type === 'action') return `[UI action] ${event.action} on ${event.card}.`;
     return '';
 }
 
@@ -1043,11 +1070,45 @@ export function normaliseUi(input: ChatMessageUI | undefined, event?: ChatEvent 
     if (options && !(isObject(options) && Array.isArray(options.available))) ui.loanOptions = null;
     else if (options && !Array.isArray(options.unavailable)) ui.loanOptions = { ...options, unavailable: [] };
 
-    if (event?.type === 'action' && event.card === 'loanOptions') {
-        // The user picked a loan from the list. The list again would ask again.
-        ui.loanOptions = null;
+    if (!event) return ui;
+
+    if (event.type === 'selection') {
+        // The user answered these lists. Showing them again asks again.
+        const flag: Record<string, keyof ChatMessageUI> = {
+            account: 'showAccounts',
+            beneficiary: 'showBeneficiaries',
+            card: 'showCards',
+            bill: 'showBills',
+        };
+        for (const pick of event.selections) {
+            const key = flag[pick.kind];
+            if (key) (ui as any)[key] = false;
+        }
     }
-    if (event?.type === 'loan') {
+
+    if (event.type === 'action') {
+        if (event.action === 'confirm' || event.action === 'cancel' || event.action === 'edit') {
+            // The preview the user acted on is answered. A success card may follow; the preview must not.
+            if (event.card === 'transferPreview') ui.transferPreview = null;
+            if (event.card === 'cardPreview') ui.cardPreview = null;
+            if (event.card === 'billPaymentPreview') ui.billPaymentPreview = null;
+        }
+        if (event.action === 'cancel') ui.requestOtp = false;
+        // The user picked a loan from the list. The list again would ask again.
+        if (event.card === 'loanOptions') ui.loanOptions = null;
+    }
+
+    if (event.type === 'otp') {
+        // The code was sent. Asking again on the same turn is a loop, unless the server says it was wrong.
+        if (ui.requestOtp !== true) ui.requestOtp = false;
+    }
+
+    if (event.type === 'amount') {
+        // The keypad sent a clean number. Drawing it again is a loop.
+        ui.requestAmount = null;
+    }
+
+    if (event.type === 'loan') {
         // The user applied with these terms. The same card again asks again.
         ui.loanOffer = null;
     }
@@ -1061,13 +1122,90 @@ export interface SendMessageOptions {
     note?: string | null;
 }
 
+/** The API root without a trailing /api, the way TransactionService resolves it. */
+function apiRoot(): string | null {
+    const base = ENV.API_CALLBACK_URL;
+    if (!base) return null;
+    return base.replace(/\/+$/, '').replace(/\/api$/i, '');
+}
+
 export class ChatService {
+    /**
+     * One chat turn. Who answers, in order:
+     *  - CHAT_AGENT=api (default): POST {API_CALLBACK_URL}/api/chat, the in-app
+     *    agent. It takes the structured event and composes its own notes, so
+     *    the message goes clean, with only the advisor's note appended.
+     *  - CHAT_AGENT=n8n: the old workflow at N8N_WEBHOOK_URL, which reads the
+     *    notes from the text and a language instruction.
+     *  Whichever is chosen but fails falls back to the other, then to the
+     *  built-in mock flows.
+     */
     static async sendMessage(content: string, sessionId: string, locale: string, options: SendMessageOptions = {}): Promise<any> {
         const { event = null, note = null } = options;
+        const preferApi = ENV.CHAT_AGENT !== 'n8n';
+        const order = preferApi
+            ? [ChatService.askApi, ChatService.askN8n]
+            : [ChatService.askN8n, ChatService.askApi];
+
+        for (const ask of order) {
+            try {
+                const answer = await ask(content, sessionId, locale, event, note);
+                if (answer) return answer;
+            } catch (error) {
+                console.error(`ChatService: ${ask.name} failed`, error);
+            }
+        }
+
+        // Offline: the built-in flows, which draw the same cards.
+        console.log('ChatService: Falling back to mock response...');
+        const fallbackMock = getMockResponse(content, sessionId, locale, event);
+        if (fallbackMock) return fallbackMock;
+        throw new Error('No chat backend answered and no mock flow matched');
+    }
+
+    /** The in-app agent at /api/chat. Null when no API callback is configured. */
+    static async askApi(
+        content: string,
+        sessionId: string,
+        locale: string,
+        event: ChatEvent | null,
+        note: string | null
+    ): Promise<any | null> {
+        const root = apiRoot();
+        if (!root) return null;
+        const url = `${root}/api/chat`;
+        console.log(`ChatService: POST ${url}`);
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                // The server composes the event note itself; only the advisor's note rides along.
+                message: note ? `${content}\n\n${note}` : content,
+                sessionId,
+                locale,
+                event,
+            }),
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Chat API error ${response.status}: ${errorText.slice(0, 200)}`);
+        }
+        const data = await response.json();
+        if (!data || typeof data.message !== 'string') throw new Error('Chat API returned no message');
+        return attachMockData({ ...data, ui: normaliseUi(data.ui, event) }, sessionId);
+    }
+
+    /** The old n8n workflow. Null when no webhook is configured. */
+    static async askN8n(
+        content: string,
+        sessionId: string,
+        locale: string,
+        event: ChatEvent | null,
+        note: string | null
+    ): Promise<any | null> {
+        if (!N8N_WEBHOOK_URL) return null;
         const agentInput = composeAgentInput(content, event, note);
-        try {
-            // Call N8N webhook FIRST - this matches the web app behavior exactly
-            // The web app always calls POST /api/chat which forwards to N8N
+        {
             console.log('ChatService: Calling N8N webhook...');
             // Build language instruction for the AI - embed it in the message so AI definitely sees it
             const languageInstruction = locale === 'ar'
@@ -1104,7 +1242,7 @@ export class ChatService {
             // If no structured response, just return the data with mock data attached
             if (!data.structured) {
                 console.log('ChatService: No structured data, using direct response');
-                return await attachMockData({ ...data, ui: normaliseUi(data.ui, event) });
+                return await attachMockData({ ...data, ui: normaliseUi(data.ui, event) }, sessionId);
             }
 
             let parsed: any;
@@ -1134,20 +1272,7 @@ export class ChatService {
             }
 
             // Attach mock data based on UI flags (same as web app)
-            return await attachMockData({ ...parsed, ui: normaliseUi(parsed.ui, event) });
-
-        } catch (error) {
-            console.error('ChatService: Error calling N8N:', error);
-
-            // On N8N error, fall back to mock response (for offline/error resilience)
-            console.log('ChatService: Falling back to mock response...');
-            const fallbackMock = getMockResponse(content, sessionId, locale, event);
-            if (fallbackMock) {
-                return fallbackMock;
-            }
-
-            // If no mock available either, throw the error
-            throw error;
+            return await attachMockData({ ...parsed, ui: normaliseUi(parsed.ui, event) }, sessionId);
         }
     }
 
@@ -1164,19 +1289,20 @@ export class ChatService {
 }
 
 // Attach mock data based on UI flags from N8N response
-async function attachMockData(parsed: any): Promise<any> {
+async function attachMockData(parsed: any, sessionId?: string): Promise<any> {
     const result = { ...parsed };
 
-    if (parsed.ui?.showAccounts) {
+    // The server sends its own rows for the lists it has; the mocks fill the rest.
+    if (parsed.ui?.showAccounts && !Array.isArray(result.accounts)) {
         result.accounts = mockAccounts;
     }
-    if (parsed.ui?.showBeneficiaries) {
+    if (parsed.ui?.showBeneficiaries && !Array.isArray(result.beneficiaries)) {
         result.beneficiaries = mockBeneficiaries;
     }
-    if (parsed.ui?.showCards) {
+    if (parsed.ui?.showCards && !Array.isArray(result.cards)) {
         result.cards = mockCards;
     }
-    if (parsed.ui?.showBills) {
+    if (parsed.ui?.showBills && !Array.isArray(result.bills)) {
         result.bills = mockBills;
     }
     if (parsed.ui?.showSpendingBreakdown) {
@@ -1193,11 +1319,12 @@ async function attachMockData(parsed: any): Promise<any> {
     }
     // transactionList is a query, not data — resolve it against the accounts API.
     if (parsed.ui?.transactionList && !result.transactions) {
-        const resolved = await TransactionService.fetchTransactions(parsed.ui.transactionList);
+        const resolved = await TransactionService.fetchTransactions(parsed.ui.transactionList, sessionId);
         if (resolved) {
             result.transactions = resolved.transactions;
             result.transactionSummary = {
                 count: resolved.count,
+                shown: resolved.shown,
                 totalIn: resolved.totalIn,
                 totalOut: resolved.totalOut,
                 currency: resolved.currency,
