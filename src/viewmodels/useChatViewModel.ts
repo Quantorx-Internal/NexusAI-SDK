@@ -245,6 +245,12 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
      * card talked about. The server remembers its own remarks.
      */
     const pendingRemarkRef = useRef<AdvisorRemark | null>(null);
+    /**
+     * The last loan card the user applied on. The agent may hold the filing
+     * back to advise first and file it a turn later ("apply anyway"); when
+     * the ticket finally arrives, that card becomes the record.
+     */
+    const lastLoanApplyRef = useRef<{ messageId: string; productId: string; loan: { amount: number; months: number } } | null>(null);
 
     const sendMessage = useCallback(async (
         content: string,
@@ -302,6 +308,17 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
             };
 
             setMessages(prev => [...prev, botMsg]);
+
+            // A ticket filed after an earlier Apply closes that loan card.
+            const applied = lastLoanApplyRef.current;
+            if (applied && response?.ui?.ticketCreated) {
+                lastLoanApplyRef.current = null;
+                setMessages(prev => prev.map(m => (
+                    m.id === applied.messageId && m.resolution?.status !== 'done'
+                        ? { ...m, resolution: { prompt: 'loan', status: 'done', productId: applied.productId, loan: applied.loan, at: new Date().toISOString() } }
+                        : m
+                )));
+            }
             return response;
         } catch (error) {
             console.error('Chat error:', error);
@@ -360,6 +377,7 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
             : `Apply: ${amount} SAR over ${tenure}`;
         const loan = { amount: choice.amount, months: choice.months };
         resolveMessage(messageId, { prompt: 'loan', status: 'pending', productId: choice.productId, loan, at: new Date().toISOString() });
+        lastLoanApplyRef.current = { messageId, productId: choice.productId, loan };
 
         const response = await sendMessage(`${isAr ? 'أبي أقدم على' : 'I want to apply for the'} ${name || choice.productId}`, {
             event: { type: 'loan', productId: choice.productId, amount: choice.amount, months: choice.months },
@@ -370,6 +388,7 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
             // The request died. The reason is on the card, and the CTA is the way to retry.
             resolveMessage(messageId, { prompt: 'loan', status: 'failed', productId: choice.productId, loan, at: new Date().toISOString() });
         } else if (response?.ui?.ticketCreated) {
+            // sendMessage already closed the card from lastLoanApplyRef; this keeps the terms exact.
             resolveMessage(messageId, { prompt: 'loan', status: 'done', productId: choice.productId, loan, at: new Date().toISOString() });
         } else {
             // Not filed: the agent is advising first, or answered with a new card. The user decides again.
