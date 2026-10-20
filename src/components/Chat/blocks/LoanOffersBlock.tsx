@@ -71,7 +71,7 @@ export function LoanOffersBlock({
     return (
         <Card variant="info">
             <View style={styles.header}>
-                <Text style={text('cardTitle')} numberOfLines={1}>
+                <Text style={[text('cardTitle'), styles.title]} numberOfLines={1}>
                     {words.title}
                 </Text>
                 {available.length > 0 ? <Text style={text('caption')}>{words.count(available.length)}</Text> : null}
@@ -280,6 +280,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         gap: 8,
     },
+    title: { flexShrink: 1 },
     subtitle: { marginTop: 2, marginBottom: layout.sectionGap },
     section: { marginTop: layout.sectionGap },
     sectionLabel: { marginBottom: 4 },
@@ -312,8 +313,10 @@ const styles = StyleSheet.create({
     },
     rowPressed: { backgroundColor: color.surface2, borderRadius: radius.inner },
     rowBlocked: { opacity: 0.6 },
-    rowText: { flex: 1, gap: 2 },
-    rowEnd: { alignItems: 'flex-end', gap: 2 },
+    // The name column shrinks; the figures column never does, so a narrow
+    // screen truncates the name, not the amount.
+    rowText: { flex: 1, minWidth: 0, gap: 2 },
+    rowEnd: { alignItems: 'flex-end', gap: 2, flexShrink: 0 },
     divider: { height: border.hairline, backgroundColor: color.surface3 },
     fitWord: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     fitDot: { width: 6, height: 6, borderRadius: 3 },
