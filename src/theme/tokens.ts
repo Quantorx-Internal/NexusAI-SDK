@@ -1,7 +1,7 @@
 import { Platform, TextStyle } from 'react-native';
 
 /**
- * AJB AI Assistant — in-chat card design tokens.
+ * ANB AI Assistant — in-chat card design tokens.
  *
  * Transcribed from the design system ("8 · Token sheet"). Every value used by the
  * 15 in-chat cards resolves to one of these — do not introduce raw hex or ad-hoc

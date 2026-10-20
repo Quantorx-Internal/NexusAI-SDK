@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Audio } from 'expo-av';
+import {
+    AudioPlayer,
+    createAudioPlayer,
+    setAudioModeAsync,
+} from 'expo-audio';
 import { VoiceService } from '../services/VoiceService';
 import { AppResetManager, CleanupPriority } from '../services/AppResetManager';
 import type { AgentVoiceId } from '../config/agentVoices';
@@ -36,7 +40,7 @@ export function useSpeech(options: UseSpeechOptions = {}): UseSpeechReturn {
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [currentMessageId, setCurrentMessageId] = useState<string | null>(null);
-    const soundRef = useRef<Audio.Sound | null>(null);
+    const soundRef = useRef<AudioPlayer | null>(null);
     const playbackDoneRef = useRef<(() => void) | null>(null);
     const controllerRef = useRef<AbortController | null>(null);
     const runIdRef = useRef(0);
@@ -46,18 +50,38 @@ export function useSpeech(options: UseSpeechOptions = {}): UseSpeechReturn {
     const instanceIdRef = useRef(`speech-${++instanceCounter}`);
 
     const stop = useCallback(() => {
-        console.log(`[useSpeech:${instanceIdRef.current}] Stopping speech`);
+        const hasActiveSpeech = Boolean(
+            controllerRef.current || soundRef.current || playbackDoneRef.current
+        );
+        if (hasActiveSpeech) {
+            console.log(`[useSpeech:${instanceIdRef.current}] Stopping speech`);
+        }
         runIdRef.current += 1;
         controllerRef.current?.abort();
         controllerRef.current = null;
-        playbackDoneRef.current?.();
+        const finishPlayback = playbackDoneRef.current;
         playbackDoneRef.current = null;
 
-        const sound = soundRef.current;
+        const player = soundRef.current;
         soundRef.current = null;
-        if (sound) {
-            sound.stopAsync().catch(() => undefined);
-            sound.unloadAsync().catch(() => undefined);
+        if (player) {
+            try {
+                // Silence the native player before resolving its playback
+                // promise. Resolving first runs finish(), which clears/removes
+                // the player before pause() gets a chance to stop its output.
+                player.volume = 0;
+                player.pause();
+            } catch (error) {
+                console.warn(`[useSpeech:${instanceIdRef.current}] Error while stopping audio:`, error);
+            }
+        }
+        finishPlayback?.();
+        if (player && !finishPlayback) {
+            try {
+                player.remove();
+            } catch {
+                // The player may already have completed and removed itself.
+            }
         }
 
         setIsSpeaking(false);
@@ -100,48 +124,59 @@ export function useSpeech(options: UseSpeechOptions = {}): UseSpeechReturn {
     }, [agentVoiceId]);
 
     const playAudioChunk = useCallback(async (uri: string, runId: number): Promise<boolean> => {
-        let sound: Audio.Sound | null = null;
+        let player: AudioPlayer | null = null;
 
         try {
-            const created = await Audio.Sound.createAsync({ uri }, { shouldPlay: false });
-            sound = created.sound;
+            player = createAudioPlayer({ uri });
 
             if (isDisposedRef.current || runId !== runIdRef.current) {
-                await sound.unloadAsync().catch(() => undefined);
+                player.remove();
                 return false;
             }
 
-            soundRef.current = sound;
+            soundRef.current = player;
 
             return await new Promise<boolean>((resolve) => {
                 let settled = false;
+                let subscription: { remove: () => void } | null = null;
 
                 const finish = (played: boolean) => {
                     if (settled) return;
                     settled = true;
+                    subscription?.remove();
                     playbackDoneRef.current = null;
-                    if (soundRef.current === sound) soundRef.current = null;
-                    sound?.unloadAsync().catch(() => undefined);
+                    if (soundRef.current === player) soundRef.current = null;
+                    try {
+                        player?.remove();
+                    } catch {
+                        // The player may already have been removed by stop().
+                    }
                     resolve(played);
                 };
 
-                playbackDoneRef.current = () => finish(false);
-                sound?.setOnPlaybackStatusUpdate((status: any) => {
-                    if (status.isLoaded && status.didJustFinish) finish(true);
-                    if (!status.isLoaded && status.error) {
+                subscription = player!.addListener('playbackStatusUpdate', status => {
+                    if (status.didJustFinish) finish(true);
+                    if (status.error) {
                         console.warn('Skipping a TTS chunk that failed to decode:', status.error);
                         finish(false);
                     }
                 });
 
-                sound?.playAsync().catch(error => {
+                playbackDoneRef.current = () => finish(false);
+                try {
+                    player!.play();
+                } catch (error) {
                     console.warn('Skipping a TTS chunk that failed to play:', error);
                     finish(false);
-                });
+                }
             });
         } catch (error) {
             console.warn('Skipping a TTS chunk that failed to load:', error);
-            await sound?.unloadAsync().catch(() => undefined);
+            try {
+                player?.remove();
+            } catch {
+                // Ignore cleanup failures for an unusable player.
+            }
             return false;
         }
     }, []);
@@ -160,8 +195,7 @@ export function useSpeech(options: UseSpeechOptions = {}): UseSpeechReturn {
             const detectedLanguage = isArabicText(text) ? 'ar' : 'en';
             console.log(`[useSpeech:${instanceIdRef.current}] Preparing TTS in ${detectedLanguage}`);
 
-            // All synthesis jobs start in parallel. Awaiting by index below keeps
-            // playback ordered even when later chunks finish first.
+            // Synthesis starts in parallel; awaiting by index preserves playback order.
             const batch = await VoiceService.createSpeechBatch(text, detectedLanguage, {
                 agentVoiceId: speakOptions.agentVoiceId ?? agentVoiceIdRef.current,
                 signal: controller.signal,
@@ -178,10 +212,10 @@ export function useSpeech(options: UseSpeechOptions = {}): UseSpeechReturn {
                 if (!chunk) continue;
 
                 if (!playedAny) {
-                    await Audio.setAudioModeAsync({
-                        allowsRecordingIOS: false,
-                        playsInSilentModeIOS: true,
-                        staysActiveInBackground: false,
+                    await setAudioModeAsync({
+                        allowsRecording: false,
+                        playsInSilentMode: true,
+                        shouldPlayInBackground: false,
                     });
                     setIsLoading(false);
                     setIsSpeaking(true);

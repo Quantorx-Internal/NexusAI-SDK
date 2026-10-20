@@ -48,7 +48,7 @@ export const mockBills: Bill[] = [
     {
         id: 'bill-005',
         type: 'credit_card',
-        providerName: 'AJB bank Credit Card',
+        providerName: 'ANB bank Credit Card',
         providerNameAr: 'بطاقة بنك الجزيرة الائتمانية',
         accountNumber: '**** **** **** 4532',
         amount: 3250.0,

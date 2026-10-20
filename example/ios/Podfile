@@ -14,9 +14,15 @@ end
 
 ENV['RCT_NEW_ARCH_ENABLED'] ||= '0' if podfile_properties['newArchEnabled'] == 'false'
 ENV['EX_DEV_CLIENT_NETWORK_INSPECTOR'] ||= podfile_properties['EX_DEV_CLIENT_NETWORK_INSPECTOR']
-ENV['RCT_USE_RN_DEP'] ||= '1' if podfile_properties['ios.buildReactNativeFromSource'] != 'true' && podfile_properties['newArchEnabled'] != 'false'
-ENV['RCT_USE_PREBUILT_RNCORE'] ||= '1' if podfile_properties['ios.buildReactNativeFromSource'] != 'true' && podfile_properties['newArchEnabled'] != 'false'
-platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'
+if podfile_properties['ios.buildReactNativeFromSource'] == 'true'
+  ENV['RCT_USE_RN_DEP'] = '0'
+  ENV['RCT_USE_PREBUILT_RNCORE'] = '0'
+elsif podfile_properties['newArchEnabled'] != 'false'
+  ENV['RCT_USE_RN_DEP'] ||= '1'
+  ENV['RCT_USE_PREBUILT_RNCORE'] ||= '1'
+end
+deployment_target = podfile_properties['ios.deploymentTarget'] || '16.4'
+platform :ios, deployment_target
 
 prepare_react_native_project!
 
@@ -59,5 +65,20 @@ target 'NEXUSAI' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
+
+    # Xcode 27 no longer accepts the legacy deployment targets declared by
+    # some transitive pods. Keep every generated Pods target on the app's
+    # supported Expo SDK 57 minimum.
+    installer.pods_project.targets.each do |pod_target|
+      pod_target.build_configurations.each do |build_configuration|
+        build_configuration.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = deployment_target
+        # The corporate directory-service group contains a backslash, which
+        # Xcode 27 passes to chown as an invalid group name while archiving.
+        # All users belong to the local `everyone` group, so it is safe for
+        # ownership of disposable archive intermediates.
+        build_configuration.build_settings['INSTALL_GROUP'] = 'everyone'
+        build_configuration.build_settings['ALTERNATE_GROUP'] = 'everyone'
+      end
+    end
   end
 end

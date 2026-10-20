@@ -154,12 +154,17 @@ export function ChatScreen() {
         } else {
             // Stop any other speech and speak this message
             stopAllSpeech();
+            const latestMessage = messages[messages.length - 1];
+            if (latestMessage?.role === 'assistant') {
+                lastMessageIdRef.current = latestMessage.id;
+            }
+            setAutoSpeak(true);
             speak(text, messageId);
         }
-    }, [currentMessageId, isSpeaking, isLoadingSpeech, stopAllSpeech, speak]);
+    }, [currentMessageId, isSpeaking, isLoadingSpeech, messages, stopAllSpeech, speak]);
 
     const toggleAutoSpeak = () => {
-        if (autoSpeak && (isSpeaking || isLoadingSpeech)) {
+        if (autoSpeak) {
             stopAllSpeech();
         }
         setAutoSpeak(!autoSpeak);
@@ -193,6 +198,13 @@ export function ChatScreen() {
         stopAllSpeech(); // Stop all speech (current + pending) when user sends a message
         sendMessage(text);
     };
+
+    // Stop playback before starting the recorder, rather than waiting for the
+    // recording state update after the native recorder has begun listening.
+    const handleStartRecording = useCallback(async () => {
+        stopAllSpeech();
+        await startRecording();
+    }, [startRecording, stopAllSpeech]);
 
     // Determine effective layout direction (XOR logic)
     const isLayoutRTL = isRTL ? !I18nManager.isRTL : I18nManager.isRTL;
@@ -355,7 +367,7 @@ export function ChatScreen() {
                     isLoading={isLoading}
                     isTranscribing={isTranscribing}
                     isRecording={isRecording}
-                    onStartRecording={startRecording}
+                    onStartRecording={handleStartRecording}
                     onStopRecording={stopRecording}
                     locale={locale}
                     isRTL={isRTL}

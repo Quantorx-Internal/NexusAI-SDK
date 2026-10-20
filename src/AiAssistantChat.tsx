@@ -19,24 +19,18 @@ export interface AiAssistantChatProps {
 function ChatContainer() {
     const { locale, resetKey, isChangingLocale } = useLocale();
 
-    // Show loading indicator during language switch
-    if (isChangingLocale) {
-        return (
-            <SafeAreaProvider>
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#4F008D" />
-                    <Text style={styles.loadingText}>Switching language...</Text>
-                </View>
-            </SafeAreaProvider>
-        );
-    }
-
     // The key combines locale AND resetKey to ensure:
     // 1. Full remount when language changes
     // 2. Full remount when AppResetManager triggers a reset
     return (
         <SafeAreaProvider key={`${locale}-${resetKey}`}>
             <ChatScreen />
+            {isChangingLocale && (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#4F008D" />
+                    <Text style={styles.loadingText}>Switching language...</Text>
+                </View>
+            )}
         </SafeAreaProvider>
     );
 }
@@ -75,11 +69,13 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
     },
     loadingContainer: {
+        ...StyleSheet.absoluteFillObject,
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: '#fff',
         gap: 16,
+        zIndex: 1,
     },
     loadingText: {
         fontSize: 16,

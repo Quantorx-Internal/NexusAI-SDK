@@ -1,5 +1,7 @@
 # General
 node_modules/
+.expo/
+.env*.local
 .idea/
 .vscode/
 .DS_Store

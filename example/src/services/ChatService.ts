@@ -27,8 +27,8 @@ function getMockResponse(message: string, sessionId: string, locale: string): an
             lowerMessage.includes('مرتبط بالراتب') || lowerMessage.includes('ادخار مرتبط')) {
             return {
                 message: isAr
-                    ? 'اختيار رائع! بما أن راتبك يُحوّل إلى بنك AJB، فأنت مؤهل. ما النسبة المئوية من راتبك التي تود ادخارها تلقائياً كل شهر؟ (الموصى به: 10-20%)'
-                    : "Great choice! Since your salary is transferred to AJB Bank, you're eligible. What percentage of your salary would you like to save automatically each month? (Recommended: 10-20%)",
+                    ? 'اختيار رائع! بما أن راتبك يُحوّل إلى بنك ANB، فأنت مؤهل. ما النسبة المئوية من راتبك التي تود ادخارها تلقائياً كل شهر؟ (الموصى به: 10-20%)'
+                    : "Great choice! Since your salary is transferred to ANB Bank, you're eligible. What percentage of your salary would you like to save automatically each month? (Recommended: 10-20%)",
                 sessionId,
                 ui: {
                     showAccounts: false,
@@ -340,8 +340,8 @@ function getMockResponse(message: string, sessionId: string, locale: string): an
             lowerMessage.includes('مرتبط بالراتب')) {
             return {
                 message: isAr
-                    ? `**ادخار مرتبط بالراتب**\n\nهذا المنتج يخصم نسبة تختارها من راتبك تلقائياً بمجرد استلامه، قبل أن تنفق.\n\n**المميزات:**\n• معدل ادخار يصل إلى 4%\n• بدون رسوم\n• سحب مرن في أي وقت\n• تتبع التقدم عبر التطبيق\n\n**المتطلبات:**\n• تحويل الراتب إلى حساب AJB bank\n• الحد الأدنى للادخار: 5% من الراتب\n\nهل تود التقديم الآن؟`
-                    : `**Salary-Linked Savings**\n\nThis product automatically deducts a percentage you choose from your salary as soon as you receive it, before you spend.\n\n**Features:**\n• Savings rate up to 4%\n• No fees\n• Flexible withdrawal anytime\n• Track progress in the app\n\n**Requirements:**\n• Salary must be transferred to AJB Bank account\n• Minimum savings: 5% of salary\n\nWould you like to apply now?`,
+                    ? `**ادخار مرتبط بالراتب**\n\nهذا المنتج يخصم نسبة تختارها من راتبك تلقائياً بمجرد استلامه، قبل أن تنفق.\n\n**المميزات:**\n• معدل ادخار يصل إلى 4%\n• بدون رسوم\n• سحب مرن في أي وقت\n• تتبع التقدم عبر التطبيق\n\n**المتطلبات:**\n• تحويل الراتب إلى حساب ANB bank\n• الحد الأدنى للادخار: 5% من الراتب\n\nهل تود التقديم الآن؟`
+                    : `**Salary-Linked Savings**\n\nThis product automatically deducts a percentage you choose from your salary as soon as you receive it, before you spend.\n\n**Features:**\n• Savings rate up to 4%\n• No fees\n• Flexible withdrawal anytime\n• Track progress in the app\n\n**Requirements:**\n• Salary must be transferred to ANB Bank account\n• Minimum savings: 5% of salary\n\nWould you like to apply now?`,
                 sessionId,
                 ui: {
                     showAccounts: false,
@@ -786,7 +786,7 @@ function getMockResponse(message: string, sessionId: string, locale: string): an
         lowerMessage.includes('أهلا') || lowerMessage === '') {
         if (isAr) {
             return {
-                message: `مرحباً! أنا مساعد بنك AJB الذكي. يمكنني مساعدتك في:
+                message: `مرحباً! أنا مساعد بنك ANB الذكي. يمكنني مساعدتك في:
 
 • عرض أرصدة الحسابات
 • إجراء التحويلات (محلية ودولية)
@@ -814,7 +814,7 @@ function getMockResponse(message: string, sessionId: string, locale: string): an
             };
         }
         return {
-            message: `Hello! I'm your AJB Bank AI Assistant. I can help you with:
+            message: `Hello! I'm your ANB Bank AI Assistant. I can help you with:
 
 • View account balances
 • Make transfers (national & international)

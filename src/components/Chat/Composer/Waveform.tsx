@@ -6,7 +6,7 @@ import { startLoop } from '../../../lib/animation';
 /**
  * 15 bars, 4pt wide, 3pt apart, 6–36pt tall.
  *
- * `metering` is iOS/Android only — expo-av's own types say so — which means on
+ * `metering` is iOS/Android only — expo-audio's own types say so — which means on
  * web `level` is permanently 0. Height therefore cannot be a pure function of
  * level: that left fifteen 4×6 bars sitting at their minimum, reading as a row
  * of dead dots. Instead every bar wanders continuously and `level` only scales

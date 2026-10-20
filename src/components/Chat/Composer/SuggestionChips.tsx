@@ -150,7 +150,9 @@ const styles = StyleSheet.create({
         backgroundColor: color.surface2,
         borderWidth: 1,
         borderColor: color.border,
-        maxWidth: 260,
+        // Let each horizontal-list item measure to its full label width.
+        // The row scrolls, so long suggestions should not shrink or ellipsize.
+        flexShrink: 0,
     },
     chipPrimary: {
         backgroundColor: color.brand[50],

@@ -2,7 +2,12 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { ChatMessage, Account } from '../types';
 import { ChatService } from '../services/ChatService';
 import { VoiceService } from '../services/VoiceService';
-import { Audio } from 'expo-av';
+import {
+    RecordingPresets,
+    requestRecordingPermissionsAsync,
+    setAudioModeAsync,
+    useAudioRecorder,
+} from 'expo-audio';
 import { Locale } from '../contexts/LocaleContext';
 
 interface UseChatViewModelOptions {
@@ -93,51 +98,43 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
     }, [sendMessage]);
 
     // Recording state
-    const recordingRef = useRef<Audio.Recording | null>(null);
+    const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
     const [isRecording, setIsRecording] = useState(false);
     const isStartingRef = useRef(false);
 
     const startRecording = useCallback(async () => {
-        if (isStartingRef.current || recordingRef.current) return;
+        if (isStartingRef.current || isRecording) return;
         isStartingRef.current = true;
 
         try {
-            const permission = await Audio.requestPermissionsAsync();
-            if (permission.status !== 'granted') {
-                isStartingRef.current = false;
-                return;
-            }
+            const permission = await requestRecordingPermissionsAsync();
+            if (!permission.granted) return;
 
-            await Audio.setAudioModeAsync({
-                allowsRecordingIOS: true,
-                playsInSilentModeIOS: true,
+            await setAudioModeAsync({
+                allowsRecording: true,
+                playsInSilentMode: true,
             });
 
-            const { recording } = await Audio.Recording.createAsync(
-                Audio.RecordingOptionsPresets.HIGH_QUALITY
-            );
-
-            recordingRef.current = recording;
+            await recorder.prepareToRecordAsync();
+            recorder.record();
             setIsRecording(true);
         } catch (err) {
             console.error('Failed to start recording:', err);
         } finally {
             isStartingRef.current = false;
         }
-    }, []);
+    }, [isRecording, recorder]);
 
     const stopRecording = useCallback(async () => {
-        if (!recordingRef.current) return;
+        if (!isRecording) return;
 
         try {
-            const recording = recordingRef.current;
-            recordingRef.current = null;
             setIsRecording(false);
 
-            await recording.stopAndUnloadAsync();
-            await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+            await recorder.stop();
+            await setAudioModeAsync({ allowsRecording: false });
 
-            const uri = recording.getURI();
+            const uri = recorder.uri;
 
             if (uri) {
                 // Small delay to ensure file is fully written
@@ -172,10 +169,9 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
             }
         } catch (error) {
             console.error('Failed to stop recording:', error);
-            recordingRef.current = null;
             setIsRecording(false);
         }
-    }, [sendMessage]);
+    }, [isRecording, locale, recorder, sendMessage]);
 
     return {
         messages,

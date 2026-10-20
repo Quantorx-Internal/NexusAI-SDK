@@ -8,6 +8,9 @@
       ],
       "ai-assistant/*": [
         "../src/*"
+      ],
+      "expo-audio": [
+        "./node_modules/expo-audio"
       ]
     }
   },

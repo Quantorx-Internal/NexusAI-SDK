@@ -50,6 +50,7 @@ export class TransactionService {
         // does not). Appending blindly produced /api/api/transactions → 404.
         const root = base.replace(/\/+$/, '').replace(/\/api$/i, '');
         const url = `${root}/api/transactions?${params.toString()}`;
+        console.log(`TransactionService: fetching ${url}`);
 
         try {
             const response = await fetch(url);
@@ -61,6 +62,7 @@ export class TransactionService {
             }
 
             const data = await response.json();
+            console.log(`TransactionService: received ${Array.isArray(data?.transactions) ? data.transactions.length : 0} transactions`);
             const transactions = Array.isArray(data?.transactions) ? data.transactions : [];
 
             return {

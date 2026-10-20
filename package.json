@@ -47,7 +47,7 @@
   "peerDependencies": {
     "@react-native-async-storage/async-storage": "*",
     "expo": "*",
-    "expo-av": "*",
+    "expo-audio": "*",
     "expo-file-system": "*",
     "lucide-react-native": "*",
     "react-native": "*",
@@ -65,12 +65,11 @@
   "dependencies": {
     "@react-native-async-storage/async-storage": "*",
     "expo": "*",
-    "expo-av": "*",
+    "expo-audio": "^57.0.5",
     "expo-clipboard": "^8.0.8",
     "expo-constants": "*",
     "expo-file-system": "*",
     "expo-linear-gradient": "^15.0.8",
-    "expo-updates": "~29.0.16",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-native": "*",

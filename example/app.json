@@ -4,14 +4,9 @@
     "slug": "nexus-ai",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/logo.jpg",
+    "icon": "./assets/icon.png",
     "scheme": "nexus-ai",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/logo.jpg",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -47,19 +42,20 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/logo.jpg",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.demery.aiassistant",
-      "usesCleartextTraffic": true
+      "package": "com.demery.aiassistant"
     },
     "plugins": [
+      "expo-asset",
       [
-        "expo-av",
+        "expo-audio",
         {
           "microphonePermission": "Allow AI Assistant to access your microphone for voice commands."
         }
-      ]
+      ],
+      "expo-status-bar"
     ]
   }
 }

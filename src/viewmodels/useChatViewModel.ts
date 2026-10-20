@@ -2,7 +2,13 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { ChatMessage, Account } from '../types';
 import { ChatService } from '../services/ChatService';
 import { VoiceService } from '../services/VoiceService';
-import { Audio } from 'expo-av';
+import {
+    RecordingPresets,
+    requestRecordingPermissionsAsync,
+    setAudioModeAsync,
+    useAudioRecorder,
+    useAudioRecorderState,
+} from 'expo-audio';
 import { Platform } from 'react-native';
 import { Locale } from '../contexts/LocaleContext';
 import { AppResetManager, CleanupPriority } from '../services/AppResetManager';
@@ -17,19 +23,27 @@ let instanceCounter = 0;
 /**
  * End-of-speech detection.
  *
- * Only possible on iOS/Android — expo-av reports `metering` on those platforms
+ * Only possible on iOS/Android — expo-audio reports `metering` on those platforms
  * only — so the explicit control in listening mode is never optional.
  *
  * The windows are deliberately forgiving. People hesitate inside the values that
  * matter most here ("send five hundred… to… Ahmed"), and clipping the amount or
  * the payee is far worse than waiting an extra beat.
  */
-/** Above this dBFS counts as speech rather than room tone. */
-const SPEECH_DB = -40;
+/**
+ * Above this dBFS counts as speech rather than room tone. −40 dBFS admitted
+ * ordinary phone/room noise as speech on iOS and continually reset auto-send.
+ */
+const SPEECH_DB = -25;
 /** Sustained silence before the take is closed automatically. */
-const SILENCE_MS = 1800;
+const SILENCE_MS = 2000;
 /** Floor so a stray quiet moment at the start can never end the take. */
 const MIN_RECORDING_MS = 1000;
+/** Recreate the native AVAudioRecorder for every take. */
+const RECORDING_OPTIONS = {
+    ...RecordingPresets.HIGH_QUALITY,
+    isMeteringEnabled: true,
+};
 
 export function useChatViewModel(options: UseChatViewModelOptions = {}) {
     const { locale = 'en' } = options;
@@ -43,44 +57,119 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
     const isDisposedRef = useRef(false);
 
     // Recording state
-    const recordingRef = useRef<Audio.Recording | null>(null);
     const [isRecording, setIsRecording] = useState(false);
     /** Input level 0-1, from the recorder's metering callback. */
     const [level, setLevel] = useState(0);
     /** 0-1 progress towards auto-stop, so the UI can show it coming. */
     const [silenceProgress, setSilenceProgress] = useState(0);
     const silenceSinceRef = useRef<number | null>(null);
+    const silenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const recordingStartedAtRef = useRef<number | null>(null);
-    // Lets the metering callback reach the latest stopRecording, which is
-    // defined further down.
+    // Lets silence detection reach stopRecording, which is defined further
+    // down without creating a hook-order dependency.
     const stopRecordingRef = useRef<(() => void) | null>(null);
     const isStartingRef = useRef(false);
+    const isStoppingRef = useRef(false);
+    const recordingActiveRef = useRef(false);
+    const disposePromiseRef = useRef<Promise<void> | null>(null);
+
+    const clearSilenceTimeout = useCallback(() => {
+        if (silenceTimeoutRef.current !== null) {
+            clearTimeout(silenceTimeoutRef.current);
+            silenceTimeoutRef.current = null;
+        }
+    }, []);
+
+    // Metering status updates can be delayed on iOS, particularly immediately
+    // after the recorder starts. The timer guarantees that a silent take still
+    // closes after the advertised interval; each detected speech frame resets it.
+    const armSilenceTimeout = useCallback(() => {
+        clearSilenceTimeout();
+        silenceTimeoutRef.current = setTimeout(() => {
+            silenceTimeoutRef.current = null;
+            if (!recordingActiveRef.current) return;
+            silenceSinceRef.current = null;
+            stopRecordingRef.current?.();
+        }, SILENCE_MS);
+    }, [clearSilenceTimeout]);
+
+    const recorder = useAudioRecorder(RECORDING_OPTIONS);
+    // Expo's recorder status event signals lifecycle changes, not meter
+    // samples. This hook polls native recorder state (including metering) at a
+    // fixed interval, which is the supported path for silence detection.
+    const recorderState = useAudioRecorderState(recorder, 250);
+
+    useEffect(() => {
+        const db = recorderState.metering;
+        if (!recordingActiveRef.current || typeof db !== 'number') return;
+
+        setLevel(Math.max(0, Math.min(1, (db + 60) / 60)));
+        if (Platform.OS === 'web') return;
+
+        const now = Date.now();
+        if (db > SPEECH_DB) {
+            silenceSinceRef.current = null;
+            armSilenceTimeout();
+            setSilenceProgress(0);
+            return;
+        }
+
+        if (silenceSinceRef.current === null) {
+            silenceSinceRef.current = now;
+            armSilenceTimeout();
+        }
+        const startedAt = recordingStartedAtRef.current ?? now;
+        if (now - startedAt < MIN_RECORDING_MS) return;
+
+        const quietFor = now - silenceSinceRef.current;
+        setSilenceProgress(Math.min(1, quietFor / SILENCE_MS));
+        if (quietFor >= SILENCE_MS) {
+            silenceSinceRef.current = null;
+            clearSilenceTimeout();
+            stopRecordingRef.current?.();
+        }
+    }, [armSilenceTimeout, clearSilenceTimeout, recorderState.metering]);
 
     /**
      * Dispose all recording resources
      */
-    const disposeRecording = useCallback(async () => {
-        console.log(`[useChatViewModel:${instanceIdRef.current}] Disposing recording resources...`);
+    const disposeRecording = useCallback(() => {
+        if (disposePromiseRef.current) return disposePromiseRef.current;
 
-        if (recordingRef.current) {
-            try {
-                await recordingRef.current.stopAndUnloadAsync().catch(() => { });
-            } catch (error) {
-                console.warn('Error disposing recording:', error);
-            } finally {
-                recordingRef.current = null;
+        const promise = (async () => {
+            console.log(`[useChatViewModel:${instanceIdRef.current}] Disposing recording resources...`);
+
+            // Track activity in JavaScript. Reading recorder.isRecording after
+            // expo-audio has released the shared object throws synchronously.
+            const wasRecording = recordingActiveRef.current;
+            recordingActiveRef.current = false;
+            clearSilenceTimeout();
+            if (wasRecording) {
+                try {
+                    await recorder.stop();
+                    await setAudioModeAsync({ allowsRecording: false });
+                } catch (error) {
+                    console.warn('Error disposing recording:', error);
+                }
             }
-        }
 
-        setIsRecording(false);
-        setLevel(0);
-        setSilenceProgress(0);
-        silenceSinceRef.current = null;
-        recordingStartedAtRef.current = null;
-        isStartingRef.current = false;
+            setIsRecording(false);
+            setLevel(0);
+            setSilenceProgress(0);
+            silenceSinceRef.current = null;
+            recordingStartedAtRef.current = null;
+            isStartingRef.current = false;
+            isStoppingRef.current = false;
 
-        console.log(`[useChatViewModel:${instanceIdRef.current}] Recording resources disposed`);
-    }, []);
+            console.log(`[useChatViewModel:${instanceIdRef.current}] Recording resources disposed`);
+        })();
+
+        disposePromiseRef.current = promise;
+        void promise.finally(() => {
+            if (disposePromiseRef.current === promise) disposePromiseRef.current = null;
+        });
+        return promise;
+    }, [clearSilenceTimeout, recorder]);
 
     /**
      * Full cleanup for this view model
@@ -114,7 +203,9 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
 
         return () => {
             unregister();
-            cleanup();
+            // useAudioRecorder owns and releases the native recorder on
+            // unmount. Do not call it after that shared object is gone.
+            isDisposedRef.current = true;
         };
     }, [cleanup]);
 
@@ -227,117 +318,121 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
             return;
         }
 
-        if (isStartingRef.current || recordingRef.current) return;
+        if (
+            isStartingRef.current
+            || isStoppingRef.current
+            || recordingActiveRef.current
+            || isRecording
+        ) return;
         isStartingRef.current = true;
 
         try {
-            const permission = await Audio.requestPermissionsAsync();
-            if (permission.status !== 'granted') {
-                isStartingRef.current = false;
+            const permission = await requestRecordingPermissionsAsync();
+            if (!permission.granted || isDisposedRef.current) return;
+
+            await setAudioModeAsync({
+                allowsRecording: true,
+                playsInSilentMode: true,
+            });
+
+            if (isDisposedRef.current) {
+                await setAudioModeAsync({ allowsRecording: false });
                 return;
             }
 
-            await Audio.setAudioModeAsync({
-                allowsRecordingIOS: true,
-                playsInSilentModeIOS: true,
-            });
-
-            // Metering drives the listening waveform. `metering` is dBFS
-            // (roughly -160 silent to 0 clipping); -60 up is the useful band.
-            const { recording } = await Audio.Recording.createAsync(
-                { ...Audio.RecordingOptionsPresets.HIGH_QUALITY, isMeteringEnabled: true },
-                status => {
-                    // `metering` (like `isRecording`) is iOS/Android only, so on
-                    // web this never fires with a level. The waveform animates on
-                    // its own and treats this as amplitude when it does arrive.
-                    const db = (status as any).metering;
-                    if (typeof db !== 'number') return;
-                    setLevel(Math.max(0, Math.min(1, (db + 60) / 60)));
-
-                    if (Platform.OS === 'web') return;
-
-                    const now = Date.now();
-                    if (db > SPEECH_DB) {
-                        silenceSinceRef.current = null;
-                        setSilenceProgress(0);
-                        return;
-                    }
-
-                    if (silenceSinceRef.current === null) silenceSinceRef.current = now;
-                    const startedAt = recordingStartedAtRef.current ?? now;
-                    if (now - startedAt < MIN_RECORDING_MS) return;
-
-                    const quietFor = now - silenceSinceRef.current;
-                    setSilenceProgress(Math.min(1, quietFor / SILENCE_MS));
-                    if (quietFor >= SILENCE_MS) {
-                        silenceSinceRef.current = null;
-                        stopRecordingRef.current?.();
-                    }
-                },
-                100
-            );
+            // Passing options forces expo-audio to create a fresh
+            // AVAudioRecorder instead of reusing a stopped/error-state one.
+            // Audio-session changes from TTS can still be settling on iOS, so
+            // retry once after deactivating and restoring recording mode.
+            try {
+                await recorder.prepareToRecordAsync(RECORDING_OPTIONS);
+            } catch (firstError) {
+                console.warn('Recorder preparation failed; retrying with a fresh audio session.', firstError);
+                await setAudioModeAsync({ allowsRecording: false }).catch(() => { });
+                await new Promise(resolve => setTimeout(resolve, 150));
+                await setAudioModeAsync({
+                    allowsRecording: true,
+                    playsInSilentMode: true,
+                });
+                await recorder.prepareToRecordAsync(RECORDING_OPTIONS);
+            }
+            recorder.record();
+            recordingActiveRef.current = true;
 
             // Check if disposed while setting up
             if (isDisposedRef.current) {
-                await recording.stopAndUnloadAsync().catch(() => { });
+                recordingActiveRef.current = false;
+                await recorder.stop().catch(() => { });
                 return;
             }
 
-            recordingRef.current = recording;
             recordingStartedAtRef.current = Date.now();
-            silenceSinceRef.current = null;
+            silenceSinceRef.current = recordingStartedAtRef.current;
+            armSilenceTimeout();
             setSilenceProgress(0);
             setIsRecording(true);
         } catch (err) {
             console.error('Failed to start recording:', err);
+            recordingActiveRef.current = false;
+            clearSilenceTimeout();
+            setIsRecording(false);
+            setLevel(0);
+            setSilenceProgress(0);
+            await setAudioModeAsync({ allowsRecording: false }).catch(() => { });
         } finally {
             isStartingRef.current = false;
         }
-    }, []);
+    }, [armSilenceTimeout, clearSilenceTimeout, isRecording, recorder]);
 
     /**
      * Cancel discards the recording without transcribing — the X in listening
      * mode must not send anything.
      */
     const cancelRecording = useCallback(async () => {
-        const recording = recordingRef.current;
-        recordingRef.current = null;
+        if (isStoppingRef.current) return;
+        const wasRecording = recordingActiveRef.current;
+        recordingActiveRef.current = false;
+        clearSilenceTimeout();
         setIsRecording(false);
         setLevel(0);
         setSilenceProgress(0);
         silenceSinceRef.current = null;
         recordingStartedAtRef.current = null;
-        if (!recording) return;
+        if (!wasRecording) return;
+        isStoppingRef.current = true;
         try {
-            await recording.stopAndUnloadAsync();
-            await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+            await recorder.stop();
+            await setAudioModeAsync({ allowsRecording: false });
         } catch (error) {
             console.warn('Error cancelling recording:', error);
+        } finally {
+            isStoppingRef.current = false;
         }
-    }, []);
+    }, [clearSilenceTimeout, isRecording, recorder]);
 
     const stopRecording = useCallback(async () => {
-        if (!recordingRef.current) return;
+        if (!recordingActiveRef.current || isStoppingRef.current) return;
+        isStoppingRef.current = true;
 
         try {
-            const recording = recordingRef.current;
-            recordingRef.current = null;
+            recordingActiveRef.current = false;
+            clearSilenceTimeout();
             setIsRecording(false);
             setLevel(0);
             setSilenceProgress(0);
+            setIsTranscribing(true);
             silenceSinceRef.current = null;
             recordingStartedAtRef.current = null;
 
-            await recording.stopAndUnloadAsync();
-            await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+            await recorder.stop();
+            await setAudioModeAsync({ allowsRecording: false });
 
-            const uri = recording.getURI();
+            const uri = recorder.uri;
 
             if (uri && !isDisposedRef.current) {
                 // Small delay to ensure file is fully written
                 await new Promise(resolve => setTimeout(resolve, 100));
 
-                setIsTranscribing(true);
                 try {
                     let text: string | null = null;
                     let retries = 2;
@@ -381,12 +476,15 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
             }
         } catch (error) {
             console.error('Failed to stop recording:', error);
-            recordingRef.current = null;
             setIsRecording(false);
+            setIsTranscribing(false);
+        } finally {
+            isStoppingRef.current = false;
+            if (!isDisposedRef.current) setIsTranscribing(false);
         }
-    }, [sendMessage, locale]);
+    }, [clearSilenceTimeout, locale, recorder, sendMessage]);
 
-    // The metering callback fires before stopRecording exists in scope.
+    // Silence detection is defined before stopRecording exists in scope.
     useEffect(() => {
         stopRecordingRef.current = stopRecording;
     }, [stopRecording]);

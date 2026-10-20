@@ -18,10 +18,10 @@ const translations: Record<Locale, Record<string, string>> = {
     en: {
         // Header
         'header.greeting': 'Good morning',
-        'header.aiAssistant': 'AJB AI Assistant',
+        'header.aiAssistant': 'ANB AI Assistant',
 
         // Chat
-        'chat.title': 'AJB AI Assistant',
+        'chat.title': 'ANB AI Assistant',
         'chat.placeholder': 'Type a message...',
         'chat.transcribing': 'Transcribing...',
         'chat.send': 'Send',
@@ -85,10 +85,10 @@ const translations: Record<Locale, Record<string, string>> = {
     ar: {
         // Header
         'header.greeting': 'صباح الخير',
-        'header.aiAssistant': 'مساعد AJB الذكي',
+        'header.aiAssistant': 'مساعد ANB الذكي',
 
         // Chat
-        'chat.title': 'مساعد AJB الذكي',
+        'chat.title': 'مساعد ANB الذكي',
         'chat.placeholder': 'اكتب رسالة...',
         'chat.transcribing': 'جاري التحويل...',
         'chat.send': 'إرسال',

@@ -158,12 +158,20 @@ export function ChatScreen() {
         } else {
             // Stop any other speech and speak this message
             stopAllSpeech();
+            // Enabling auto-speak reruns its effect. Mark the current latest
+            // message handled so that effect does not interrupt this explicit
+            // playback and schedule a second voice job.
+            const latestMessage = messages[messages.length - 1];
+            if (latestMessage?.role === 'assistant') {
+                lastMessageIdRef.current = latestMessage.id;
+            }
+            setAutoSpeak(true);
             speak(text, messageId);
         }
-    }, [currentMessageId, isSpeaking, isLoadingSpeech, stopAllSpeech, speak]);
+    }, [currentMessageId, isSpeaking, isLoadingSpeech, messages, stopAllSpeech, speak]);
 
     const toggleAutoSpeak = () => {
-        if (autoSpeak && (isSpeaking || isLoadingSpeech)) {
+        if (autoSpeak) {
             stopAllSpeech();
         }
         setAutoSpeak(!autoSpeak);
@@ -197,6 +205,14 @@ export function ChatScreen() {
         stopAllSpeech(); // Stop all speech (current + pending) when user sends a message
         sendMessage(text);
     };
+
+    // Interrupt audio at the instant the mic is tapped. Waiting for
+    // `isRecording` means playback can continue during permission/recorder
+    // setup and be captured by the microphone.
+    const handleStartRecording = useCallback(async () => {
+        stopAllSpeech();
+        await startRecording();
+    }, [startRecording, stopAllSpeech]);
 
     // Determine effective layout direction (XOR logic)
     const isLayoutRTL = isRTL ? !I18nManager.isRTL : I18nManager.isRTL;
@@ -428,7 +444,7 @@ export function ChatScreen() {
                     isRecording={isRecording}
                     level={level}
                     silenceProgress={silenceProgress}
-                    onStartRecording={startRecording}
+                    onStartRecording={handleStartRecording}
                     onStopRecording={stopRecording}
                     onCancelRecording={cancelRecording}
                     suggestions={suggestions}

@@ -1,5 +1,4 @@
 import * as FileSystem from 'expo-file-system/legacy';
-import NativeFormData from 'react-native/Libraries/Network/FormData';
 import { ENV } from '../config/constants';
 import {
     SpeechSpeakerSex,
@@ -42,10 +41,6 @@ interface RunpodOutput {
 const RUNPOD_BASE_URL = 'https://api.runpod.ai/v2';
 const RUNPOD_TIMEOUT_MS = 180_000;
 const RUNPOD_POLL_INTERVAL_MS = 1_200;
-
-function createFormData(): any {
-    return new NativeFormData();
-}
 
 function cancellationError(): Error {
     const error = new Error('Speech synthesis was cancelled.');
@@ -124,7 +119,7 @@ export class VoiceService {
         const jobs = prepared.chunks.map((chunk, index) => (
             this.synthesizeChunk(chunk, index, locale, engine, speakerSex, agentVoice, options.signal)
                 .catch(error => {
-                    if (!isCancellation(error)) {
+                    if (!options.signal?.aborted && !isCancellation(error)) {
                         console.warn(`TTS chunk ${index} failed and will be skipped.`, error);
                     }
                     return null;
@@ -159,7 +154,7 @@ export class VoiceService {
                         warnings: [],
                     }))
                     .catch(error => {
-                        if (!isCancellation(error)) {
+                        if (!signal?.aborted && !isCancellation(error)) {
                             console.warn('English TTS failed and will be skipped.', error);
                         }
                         return null;
@@ -462,47 +457,86 @@ export class VoiceService {
     private static async transcribeWithOpenAI(audioUri: string, language: 'en' | 'ar'): Promise<string> {
         if (!ENV.OPENAI_API_KEY) throw new Error('Missing OpenAI API key for speech recognition.');
 
-        const formData = createFormData();
-        formData.append('file', {
-            uri: audioUri,
-            type: 'audio/mp4',
-            name: 'audio.mp4',
-        } as any);
-        formData.append('model', 'gpt-4o-transcribe');
-        formData.append('response_format', 'json');
-        formData.append('language', language);
-
-        const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${ENV.OPENAI_API_KEY}` },
-            body: formData,
-        });
-        if (!response.ok) throw new Error(`OpenAI STT failed (${response.status}).`);
-
-        const result = await response.json();
-        return result.text;
+        return this.uploadTranscription(
+            'https://api.openai.com/v1/audio/transcriptions',
+            audioUri,
+            language,
+            {
+                Authorization: `Bearer ${ENV.OPENAI_API_KEY}`,
+                Accept: 'application/json',
+            },
+            {
+                model: 'gpt-4o-transcribe',
+                response_format: 'json',
+            },
+            'OpenAI'
+        );
     }
 
     private static async transcribeWithSelfHosted(audioUri: string, language: 'en' | 'ar'): Promise<string> {
         if (!ENV.STT_SELF_HOSTED_URL) throw new Error('Missing self-hosted STT URL.');
 
-        const formData = createFormData();
-        const fileExtension = audioUri.split('.').pop() || 'm4a';
-        const mimeType = fileExtension === 'm4a' ? 'audio/mp4' : `audio/${fileExtension}`;
-        const filename = fileExtension === 'm4a' ? 'audio.mp4' : `audio.${fileExtension}`;
+        return this.uploadTranscription(
+            `${ENV.STT_SELF_HOSTED_URL}/v1/audio/transcriptions`,
+            audioUri,
+            language,
+            { Accept: 'application/json' },
+            { model: 'deepdml/faster-whisper-large-v3-turbo-ct2' },
+            'Self-hosted STT'
+        );
+    }
 
-        formData.append('file', { uri: audioUri, type: mimeType, name: filename } as any);
-        formData.append('model', 'deepdml/faster-whisper-large-v3-turbo-ct2');
-        formData.append('language', language);
+    /**
+     * Uses the native file uploader instead of fetch/FormData. Expo's fetch
+     * implementation accepts Blob/File parts only and rejects React Native URI
+     * descriptors, while the uploader streams a `file://` recording directly.
+     */
+    private static async uploadTranscription(
+        url: string,
+        audioUri: string,
+        language: 'en' | 'ar',
+        headers: Record<string, string>,
+        parameters: Record<string, string>,
+        provider: string
+    ): Promise<string> {
+        // AVAudioRecorder.stop() can return before the container has finished
+        // being flushed on a physical iOS device. This is more visible in a
+        // Release/TestFlight build than in a debugger-attached run. Do not
+        // hand OpenAI a zero-byte or partially-written m4a file.
+        let fileInfo: { exists: boolean; size?: number } | null = null;
+        let previousSize = -1;
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+            fileInfo = await FileSystem.getInfoAsync(audioUri);
+            const size = fileInfo.exists && typeof fileInfo.size === 'number' ? fileInfo.size : 0;
+            if (size > 1024 && size === previousSize) break;
+            previousSize = size;
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        const finalSize = fileInfo?.exists && typeof fileInfo.size === 'number' ? fileInfo.size : 0;
+        console.log(`[VoiceService] STT recording ready: ${audioUri} (${finalSize} bytes)`);
+        if (!fileInfo?.exists || finalSize <= 1024) {
+            throw new Error(`Recorded audio file is unavailable or empty (${finalSize} bytes).`);
+        }
 
-        const response = await fetch(`${ENV.STT_SELF_HOSTED_URL}/v1/audio/transcriptions`, {
-            method: 'POST',
-            headers: { Accept: 'application/json' },
-            body: formData,
+        const extension = audioUri.split('?')[0].split('.').pop()?.toLowerCase() || 'm4a';
+        const mimeType = extension === 'm4a' ? 'audio/mp4' : `audio/${extension}`;
+
+        const response = await FileSystem.uploadAsync(url, audioUri, {
+            httpMethod: 'POST',
+            uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+            fieldName: 'file',
+            mimeType,
+            headers,
+            parameters: { ...parameters, language },
         });
-        if (!response.ok) throw new Error(`Self-hosted STT failed (${response.status}).`);
+        if (response.status < 200 || response.status >= 300) {
+            throw new Error(`${provider} failed (${response.status}): ${response.body.slice(0, 300)}`);
+        }
 
-        const result = await response.json();
+        const result = JSON.parse(response.body);
+        if (typeof result?.text !== 'string') {
+            throw new Error(`${provider} returned no transcription text.`);
+        }
         return result.text;
     }
 }

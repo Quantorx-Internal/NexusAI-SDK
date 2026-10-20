@@ -9,8 +9,8 @@ export const products: Recommendation[] = [
         descriptionAr: 'لديك رصيد جيد ولكن معدل ادخار شهري منخفض (4%). هذا يؤتمت مدخراتك.',
         ctaQuestion: 'Would you like to start saving?',
         ctaQuestionAr: 'هل تود البدء في الادخار؟',
-        features: ['Save before you spend', 'Salary must be transferred to AJB Bank account'],
-        featuresAr: ['ادخر قبل أن تنفق', 'يجب تحويل الراتب إلى حساب AJB bank'],
+        features: ['Save before you spend', 'Salary must be transferred to ANB Bank account'],
+        featuresAr: ['ادخر قبل أن تنفق', 'يجب تحويل الراتب إلى حساب ANB bank'],
         badges: [
             { text: 'Special Offer', textAr: 'عرض خاص', variant: 'special' },
             { text: 'Savings', textAr: 'ادخار', variant: 'category' }

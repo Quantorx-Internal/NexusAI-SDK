@@ -119,7 +119,7 @@ export function Composer({
 
     const placeholder = isTranscribing
         ? isAr ? 'جاري التحويل…' : 'Transcribing…'
-        : isAr ? 'اسأل AJB عن أي شيء' : 'Ask AJB anything';
+        : isAr ? 'اسأل ANB عن أي شيء' : 'Ask ANB anything';
 
     return (
         <>

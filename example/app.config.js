@@ -2,6 +2,7 @@ const appJson = require('./app.json');
 
 const runtimeKeys = [
   'NEXT_PUBLIC_API_URL',
+  'EXPO_PUBLIC_API_CALLBACK_URL',
   'NGROK_URL',
   'N8N_WEBHOOK_URL',
   'STT_PROVIDER',

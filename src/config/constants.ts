@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 
 type RuntimeEnvironment = Partial<Record<
     | 'NEXT_PUBLIC_API_URL'
+    | 'EXPO_PUBLIC_API_CALLBACK_URL'
     | 'NGROK_URL'
     | 'N8N_WEBHOOK_URL'
     | 'STT_PROVIDER'
@@ -28,6 +29,16 @@ const runtimeEnvironment = (
     Constants.expoConfig?.extra?.runtimeEnvironment ?? {}
 ) as RuntimeEnvironment;
 
+// A local `.env.local` is intentionally allowed to override development
+// values, but it must never leak into a distributed archive. In particular,
+// NEXT_PUBLIC_API_URL is localhost in the example's development environment.
+// React Native Release bundles do not reliably expose NODE_ENV. __DEV__ is
+// the authoritative flag in the native runtime, so use it when available.
+const isDevelopmentBuild = typeof __DEV__ !== 'undefined'
+    ? __DEV__
+    : process.env.NODE_ENV !== 'production';
+const PRODUCTION_API_CALLBACK_URL = 'https://ai-bank-poc.vercel.app';
+
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
     if (value === undefined || value === '') return fallback;
     return value === '1' || value.toLowerCase() === 'true';
@@ -42,9 +53,17 @@ export const ENV = {
     API_URL: runtimeEnvironment.NEXT_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_URL,
     NGROK_URL: runtimeEnvironment.NGROK_URL || process.env.EXPO_PUBLIC_NGROK_URL,
     N8N_WEBHOOK_URL: runtimeEnvironment.N8N_WEBHOOK_URL || process.env.EXPO_PUBLIC_N8N_WEBHOOK_URL,
-    API_CALLBACK_URL: runtimeEnvironment.NEXT_PUBLIC_API_URL
-        || process.env.EXPO_PUBLIC_API_CALLBACK_URL
-        || process.env.EXPO_PUBLIC_API_URL,
+    // A physical device cannot resolve a development server bound to the
+    // developer's LAN/localhost. Prefer an explicitly configured public
+    // callback (the tunnel) and retain the local API URL as the fallback.
+    API_CALLBACK_URL: isDevelopmentBuild
+        ? runtimeEnvironment.EXPO_PUBLIC_API_CALLBACK_URL
+            || process.env.EXPO_PUBLIC_API_CALLBACK_URL
+            || runtimeEnvironment.NGROK_URL
+            || process.env.EXPO_PUBLIC_NGROK_URL
+            || runtimeEnvironment.NEXT_PUBLIC_API_URL
+            || process.env.EXPO_PUBLIC_API_URL
+        : PRODUCTION_API_CALLBACK_URL,
 
     // Speech to text
     OPENAI_API_KEY: process.env.EXPO_PUBLIC_OPENAI_API_KEY,
@@ -96,7 +115,10 @@ export const ENV = {
     ),
     TTS_NORMALISE_LOUDNESS: parseBoolean(
         runtimeEnvironment.TTS_NORMALISE_LOUDNESS || process.env.EXPO_PUBLIC_TTS_NORMALISE_LOUDNESS,
-        true
+        // The SDK deliberately has no embedded ffmpeg binary. Keep this opt-in
+        // so a normal Expo install does not advertise a post-processing pass it
+        // cannot perform.
+        false
     ),
 
     MOCK_OTP: runtimeEnvironment.MOCK_OTP || process.env.EXPO_PUBLIC_MOCK_OTP,
