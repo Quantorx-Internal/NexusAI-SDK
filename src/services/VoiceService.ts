@@ -209,7 +209,9 @@ export class VoiceService {
                 language: locale === 'ar' ? 'Najdi Arabic' : 'English',
                 speed: 1.0,
                 num_step: 48,
-                guidance_scale: 2.0,
+                // Classifier-free guidance. 2.0 (the model's default) pushed the voice
+                // sharp and pressed; 1.5 keeps the instruction and softens the delivery.
+                guidance_scale: 1.5,
                 class_temperature: 0.0,
                 denoise: true,
                 preprocess_prompt: true,
@@ -224,7 +226,8 @@ export class VoiceService {
 
         return {
             text,
-            cfg_value: 2.0,
+            // VoxCPM's guidance. 1.8 is what Arabic fine-tunes settle on; 2.0 sounds harsh.
+            cfg_value: 1.8,
             inference_timesteps: 16,
             normalize: false,
             retry_badcase: true,
