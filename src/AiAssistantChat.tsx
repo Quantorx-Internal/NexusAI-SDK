@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ChatScreen } from './views/ChatScreen';
 import { LocaleProvider, Locale, useLocale } from './contexts/LocaleContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { LayoutDirectionProvider } from './contexts/LayoutDirectionContext';
 import type { ThemeInput } from './theme/theme';
 import { color } from './theme/tokens';
 
@@ -25,14 +26,16 @@ export interface AiAssistantChatProps {
  * when language changes, ensuring all state is reset
  */
 function ChatContainer() {
-    const { locale, resetKey, isChangingLocale } = useLocale();
+    const { locale, resetKey, isChangingLocale, isRTL } = useLocale();
 
     // The key combines locale AND resetKey to ensure:
     // 1. Full remount when language changes
     // 2. Full remount when AppResetManager triggers a reset
     return (
         <SafeAreaProvider key={`${locale}-${resetKey}`}>
-            <ChatScreen />
+            <LayoutDirectionProvider languageRTL={isRTL}>
+                <ChatScreen />
+            </LayoutDirectionProvider>
             {isChangingLocale && (
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={color.brand[600]} />

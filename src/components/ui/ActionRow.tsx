@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { Check } from 'lucide-react-native';
 import { color, radius, size, layout, text, iconStroke } from '../../theme/tokens';
+import { useLayoutRTL, row, alignText } from '../../contexts/LayoutDirectionContext';
 
 /**
  * Action row.
@@ -92,9 +93,10 @@ export function ActionRow({
     working,
     confirmedLabel,
 }: ActionRowProps) {
+    const flip = useLayoutRTL();
     if (confirmedLabel) {
         return (
-            <View style={styles.confirmed}>
+            <View style={[styles.confirmed, row(flip)]}>
                 <Check size={size.icon.xs} color={color.success.fg} strokeWidth={iconStroke} />
                 <Text style={text('caption', { color: color.success.fg })}>{confirmedLabel}</Text>
             </View>
@@ -116,7 +118,7 @@ export function ActionRow({
                 />
             )}
             {hasSecondRow && (
-                <View style={styles.secondRow}>
+                <View style={[styles.secondRow, row(flip)]}>
                     {secondaryLabel && (
                         <Button
                             label={secondaryLabel}

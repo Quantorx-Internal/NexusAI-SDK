@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { color, radius, size, text, Tone, toneSet } from '../../theme/tokens';
+import { useLayoutRTL, row, alignText } from '../../contexts/LayoutDirectionContext';
 
 /**
  * Status pill — 20h, 2/8 padding, badge type, 6px dot.
@@ -28,10 +29,12 @@ export function StatusPill({
     icon,
 }: StatusPillProps) {
     const set = toneSet(tone);
+    const flip = useLayoutRTL();
     return (
         <View
             style={[
                 styles.pill,
+                row(flip),
                 outlined
                     ? { borderWidth: 1, borderColor: set.border, backgroundColor: 'transparent' }
                     : { backgroundColor: set.bg },

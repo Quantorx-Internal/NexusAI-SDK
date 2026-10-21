@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { Check, Sparkles } from 'lucide-react-native';
 import { Card, DetailRow, StatusPill, IconBox, Button, AffordabilityBar, Adjuster, InlineAlert } from '../../ui';
 import type { AdjusterTick } from '../../ui';
@@ -7,6 +7,7 @@ import { color, layout, loan, radius, size, text, iconStroke } from '../../../th
 import { adviseLoan, quoteLoan, rateLabel, tenureLabel } from '../../../lib/loans';
 import { ChatResolution, LoanOfferUI, LoanTerms } from '../../../types';
 import { CURRENCY_WORD, LOAN_WORDS, LoanLocale, compact, money, splitPlain, stamp } from './loanWords';
+import { useLayoutRTL, row, alignText, alignStart, alignEnd } from '../../../contexts/LayoutDirectionContext';
 
 /**
  * Family B · LoanPlan — a decision the user is about to submit (design §5b, §5c).
@@ -98,6 +99,8 @@ export function LoanPlanBlock({
     // again. The plan it last spoke about starts as the agent's: the chat
     // message under which the card sits already covers that one.
     const [remarks, setRemarks] = useState<Record<string, string>>({});
+    /** The plan the advisor is being asked about right now, so the card can show it thinking. */
+    const [asking, setAsking] = useState<string | null>(null);
     const spokenAbout = useRef({ amount: offer.amount, months: offer.months });
     const planKey = `${shown.amount}-${shown.months}`;
 
@@ -113,9 +116,11 @@ export function LoanPlanBlock({
 
         const request = new AbortController();
         const timer = setTimeout(async () => {
+            setAsking(key);
             const said = await askAdvisor({ productId: product.id, amount, months, from }, request.signal).catch(() => null);
             if (request.signal.aborted) return;
             spokenAbout.current = { amount, months };
+            setAsking(current => (current === key ? null : current));
             if (said) setRemarks(all => ({ ...all, [key]: said }));
         }, ADVISE_AFTER_MS);
 
@@ -123,12 +128,16 @@ export function LoanPlanBlock({
         return () => {
             clearTimeout(timer);
             request.abort();
+            setAsking(current => (current === key ? null : current));
         };
     }, [amount, months, editable, askAdvisor, budget, product.id, remarks]);
 
     const remark = live && budget
         ? remarks[planKey] ?? localRemark?.(shown.amount, shown.months) ?? null
         : null;
+    // The advisor is weighing this very plan: show it thinking rather than the
+    // app's own line, so the wait reads as something worth waiting for.
+    const thinking = editable && asking === planKey && !remarks[planKey];
 
     const amountTicks = useMemo<AdjusterTick[]>(
         () => [
@@ -148,13 +157,14 @@ export function LoanPlanBlock({
     }, [terms, inYears, locale]);
 
     const hero = splitPlain(quote.monthly);
+    const flip = useLayoutRTL();
     const dim = pending ? { opacity: loan.recalculatingOpacity } : null;
     const fees = quote.fee ? money(quote.fee, locale, 2) : words.noFees;
 
     return (
         <Card variant={submitted || !live ? 'info' : 'decision'}>
-            <View style={styles.header}>
-                <Text style={text('cardTitle')} numberOfLines={1}>
+            <View style={[styles.header, row(flip)]}>
+                <Text style={[text('cardTitle'), alignText(flip)]} numberOfLines={1}>
                     {name}
                 </Text>
                 {submitted ? (
@@ -169,7 +179,7 @@ export function LoanPlanBlock({
             </View>
 
             {/* The number the user is shaping. */}
-            <View style={[styles.hero, dim]}>
+            <View style={[styles.hero, alignStart(flip), dim]}>
                 <Text style={text('caption')}>{words.monthly}</Text>
                 <Text numberOfLines={1} adjustsFontSizeToFit>
                     <Text style={[text('hero'), styles.tabular]}>{hero.head}</Text>
@@ -218,14 +228,21 @@ export function LoanPlanBlock({
                 </View>
             ) : null}
 
-            {remark ? (
-                <View style={[styles.section, styles.advisor]}>
+            {remark || thinking ? (
+                <View style={[styles.section, styles.advisor, row(flip)]}>
                     <IconBox box={loan.advisorIcon} tone="brandTint" style={styles.advisorIcon}>
                         <Sparkles size={size.icon.xs} color={color.brand[600]} strokeWidth={iconStroke} />
                     </IconBox>
-                    <View style={styles.advisorText}>
-                        <Text style={text('caption', { color: color.brand[600], fontWeight: '600' })}>{words.advisor}</Text>
-                        <Text style={text('rowLabel', { color: color.text.primary })}>{remark}</Text>
+                    <View style={[styles.advisorText, alignStart(flip)]}>
+                        <Text style={[text('caption', { color: color.brand[600], fontWeight: '600' }), alignText(flip)]}>{words.advisor}</Text>
+                        {thinking ? (
+                            <View style={[styles.thinking, row(flip)]} accessibilityRole="progressbar" accessibilityLabel={words.thinking}>
+                                <ActivityIndicator size="small" color={color.brand[600]} />
+                                <Text style={[text('rowLabel'), alignText(flip)]}>{words.thinking}</Text>
+                            </View>
+                        ) : (
+                            <Text style={[text('rowLabel', { color: color.text.primary }), alignText(flip)]}>{remark}</Text>
+                        )}
                     </View>
                 </View>
             ) : null}
@@ -250,7 +267,7 @@ export function LoanPlanBlock({
             ) : null}
 
             {submitted ? (
-                <View style={[styles.section, styles.doneStrip]}>
+                <View style={[styles.section, styles.doneStrip, row(flip)]}>
                     <Check size={size.icon.xs} color={color.success.fg} strokeWidth={iconStroke} />
                     <Text style={text('caption', { color: color.success.fg, fontWeight: '600' })} numberOfLines={1}>
                         {resolution?.at ? words.appliedAt(stamp(resolution.at, locale)) : words.applied}
@@ -267,7 +284,7 @@ export function LoanPlanBlock({
                 </View>
             ) : null}
 
-            <Text style={[text('caption'), styles.disclaimer]}>{words.disclaimer}</Text>
+            <Text style={[text('caption'), styles.disclaimer, alignText(flip)]}>{words.disclaimer}</Text>
         </Card>
     );
 }
@@ -294,6 +311,7 @@ const styles = StyleSheet.create({
     },
     advisorIcon: { borderRadius: 8 },
     advisorText: { flex: 1, gap: 2 },
+    thinking: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 22 },
     terms: { gap: layout.rowGap },
     doneStrip: {
         flexDirection: 'row',

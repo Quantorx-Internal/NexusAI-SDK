@@ -9,6 +9,7 @@ import {
     Modal,
     KeyboardAvoidingView,
     Platform,
+    I18nManager,
 } from 'react-native';
 import { BrainCircuit, Sparkles, ChevronLeft, ChevronRight, Check, RotateCcw } from 'lucide-react-native';
 import { Button } from '../components/ui';
@@ -29,6 +30,7 @@ import {
     assistantName,
 } from '../theme/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import { useLayoutRTL, row, alignText, alignStart, alignEnd } from '../contexts/LayoutDirectionContext';
 
 /**
  * Assistant preferences: theme and names (design §6).
@@ -158,12 +160,14 @@ export function PreferencesScreen({ locale = 'en', isRTL = false, onClose }: Pre
         else onClose();
     }, [dirty, onClose]);
 
-    const BackIcon = isRTL ? ChevronRight : ChevronLeft;
+    const flip = useLayoutRTL();
+    // The chevron points toward the reading start, whichever way the rows run.
+    const BackIcon = (flip ? !I18nManager.isRTL : I18nManager.isRTL) ? ChevronRight : ChevronLeft;
 
     return (
         <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             {/* Nav */}
-            <View style={styles.nav}>
+            <View style={[styles.nav, row(flip)]}>
                 <Pressable
                     onPress={back}
                     accessibilityRole="button"
@@ -173,7 +177,7 @@ export function PreferencesScreen({ locale = 'en', isRTL = false, onClose }: Pre
                 >
                     <BackIcon size={size.icon.xl} color={color.text.primary} strokeWidth={iconStroke} />
                 </Pressable>
-                <Text style={[text('cardTitle'), styles.navTitle]} numberOfLines={1}>
+                <Text style={[text('cardTitle'), styles.navTitle, alignText(flip)]} numberOfLines={1}>
                     {words.title}
                 </Text>
                 <Pressable
@@ -196,13 +200,13 @@ export function PreferencesScreen({ locale = 'en', isRTL = false, onClose }: Pre
             <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
                 {/* Preview */}
                 <View style={styles.section}>
-                    <Text style={[text('caption'), styles.sectionLabel]}>{words.preview}</Text>
-                    <Preview theme={preview} locale={locale} words={words} />
+                    <Text style={[text('caption'), styles.sectionLabel, alignText(flip)]}>{words.preview}</Text>
+                    <Preview theme={preview} locale={locale} words={words} flip={flip} />
                 </View>
 
                 {/* Names */}
                 <View style={styles.section}>
-                    <Text style={[text('caption'), styles.sectionLabel]}>{words.names}</Text>
+                    <Text style={[text('caption'), styles.sectionLabel, alignText(flip)]}>{words.names}</Text>
                     <Field
                         label={words.nameEn}
                         value={draft.assistantNameEn}
@@ -230,8 +234,8 @@ export function PreferencesScreen({ locale = 'en', isRTL = false, onClose }: Pre
 
                 {/* Brand colour */}
                 <View style={styles.section}>
-                    <Text style={[text('caption'), styles.sectionLabel]}>{words.colour}</Text>
-                    <View style={styles.swatches}>
+                    <Text style={[text('caption'), styles.sectionLabel, alignText(flip)]}>{words.colour}</Text>
+                    <View style={[styles.swatches, row(flip)]}>
                         {PRESET_COLORS.map(preset => {
                             const selected = hex === preset.hex;
                             return (
@@ -267,7 +271,7 @@ export function PreferencesScreen({ locale = 'en', isRTL = false, onClose }: Pre
 
                     {hex ? (
                         <>
-                            <View style={styles.ramp}>
+                            <View style={[styles.ramp, row(flip)]}>
                                 <RampChip label={words.ramp.subtle} hex={preview.color.primarySubtle} />
                                 <RampChip label={words.ramp.border} hex={preview.color.borderBrand} />
                                 <RampChip label={words.ramp.primary} hex={preview.color.primary} />
@@ -276,12 +280,13 @@ export function PreferencesScreen({ locale = 'en', isRTL = false, onClose }: Pre
                             <View
                                 style={[
                                     styles.check,
+                                    row(flip),
                                     { backgroundColor: readable ? color.success.bg : color.danger.bg },
                                 ]}
                                 accessibilityRole="text"
                             >
                                 <View style={[styles.checkDot, { backgroundColor: readable ? color.success.fg : color.danger.fg }]} />
-                                <Text style={text('caption', { color: readable ? color.success.fgStrong : color.danger.fgStrong })}>
+                                <Text style={[text('caption', { color: readable ? color.success.fgStrong : color.danger.fgStrong }), alignText(flip), styles.checkText]}>
                                     {readable ? words.passes(ratio) : words.fails(ratio)}
                                 </Text>
                             </View>
@@ -293,7 +298,7 @@ export function PreferencesScreen({ locale = 'en', isRTL = false, onClose }: Pre
                 <Pressable
                     onPress={() => setDraft(draftOf(DEFAULT_THEME))}
                     accessibilityRole="button"
-                    style={({ pressed }) => [styles.reset, pressed && styles.navButtonPressed]}
+                    style={({ pressed }) => [styles.reset, row(flip), pressed && styles.navButtonPressed]}
                 >
                     <RotateCcw size={size.icon.sm} color={color.text.secondary} strokeWidth={iconStroke} />
                     <Text style={text('rowLabel')}>{words.reset}</Text>
@@ -304,9 +309,9 @@ export function PreferencesScreen({ locale = 'en', isRTL = false, onClose }: Pre
             <Modal visible={askDiscard} transparent animationType="fade" onRequestClose={() => setAskDiscard(false)}>
                 <Pressable style={styles.backdrop} onPress={() => setAskDiscard(false)}>
                     <Pressable style={styles.dialog} onPress={() => undefined}>
-                        <Text style={text('cardTitle')}>{words.discardTitle}</Text>
-                        <Text style={text('body', { color: color.text.secondary })}>{words.discardBody}</Text>
-                        <View style={styles.dialogActions}>
+                        <Text style={[text('cardTitle'), alignText(flip)]}>{words.discardTitle}</Text>
+                        <Text style={[text('body', { color: color.text.secondary }), alignText(flip)]}>{words.discardBody}</Text>
+                        <View style={[styles.dialogActions, row(flip)]}>
                             <Button label={words.keepEditing} kind="secondary" onPress={() => setAskDiscard(false)} style={styles.dialogButton} />
                             <Button
                                 label={words.discard}
@@ -326,25 +331,25 @@ export function PreferencesScreen({ locale = 'en', isRTL = false, onClose }: Pre
 }
 
 /** The four places the brand colour appears, drawn from the draft theme. */
-function Preview({ theme, locale, words }: { theme: Theme; locale: Locale; words: (typeof WORDS)[Locale] }) {
+function Preview({ theme, locale, words, flip }: { theme: Theme; locale: Locale; words: (typeof WORDS)[Locale]; flip: boolean }) {
     const c = theme.color;
     return (
         <View style={styles.preview}>
-            <View style={styles.previewHeader}>
+            <View style={[styles.previewHeader, row(flip)]}>
                 <View style={[styles.previewAvatar, { backgroundColor: c.primarySubtle }]}>
                     <BrainCircuit size={size.icon.md} color={c.primary} strokeWidth={iconStroke} />
                 </View>
-                <Text style={[text('rowValue'), styles.previewName]} numberOfLines={1}>
+                <Text style={[text('rowValue'), styles.previewName, alignText(flip)]} numberOfLines={1}>
                     {assistantName(theme, locale)}
                 </Text>
                 <Sparkles size={size.icon.sm} color={c.primary} strokeWidth={iconStroke} />
             </View>
-            <View style={styles.previewBubbleRow}>
-                <View style={[styles.previewBubble, { backgroundColor: c.primary }]}>
+            <View style={[styles.previewBubbleRow, alignEnd(flip)]}>
+                <View style={[styles.previewBubble, flip && styles.previewBubbleRtl, { backgroundColor: c.primary }]}>
                     <Text style={text('rowLabel', { color: color.text.inverse })}>{words.previewBubble}</Text>
                 </View>
             </View>
-            <View style={styles.previewActions}>
+            <View style={[styles.previewActions, row(flip)]}>
                 <View style={[styles.previewButton, { backgroundColor: c.primary }]}>
                     <Text style={text('button', { color: color.text.inverse })}>{words.previewButton}</Text>
                 </View>
@@ -382,12 +387,14 @@ function Field({
     onChange: (value: string) => void;
 }) {
     const [focused, setFocused] = useState(false);
+    const flip = useLayoutRTL();
     return (
         <View style={styles.field}>
-            <Text style={text('rowLabel')}>{label}</Text>
+            <Text style={[text('rowLabel'), alignText(flip)]}>{label}</Text>
             <View
                 style={[
                     styles.input,
+                    row(flip),
                     focused && { borderColor: color.brand[600], borderWidth: 1.5 },
                     error && !focused && { borderColor: color.danger.border },
                 ]}
@@ -407,24 +414,26 @@ function Field({
                         text(mono ? 'mono' : 'rowValue'),
                         styles.inputText,
                         rtl && styles.inputRtl,
+                        !rtl && !mono && flip && { textAlign: 'left', writingDirection: 'ltr' },
                         Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : null,
                     ]}
                 />
             </View>
             {error ? (
-                <Text style={text('caption', { color: color.danger.fg })}>{error}</Text>
+                <Text style={[text('caption', { color: color.danger.fg }), alignText(flip)]}>{error}</Text>
             ) : help ? (
-                <Text style={text('caption')}>{help}</Text>
+                <Text style={[text('caption'), alignText(flip)]}>{help}</Text>
             ) : null}
         </View>
     );
 }
 
 function RampChip({ label, hex }: { label: string; hex: string }) {
+    const flip = useLayoutRTL();
     return (
-        <View style={styles.rampChip}>
+        <View style={[styles.rampChip, alignStart(flip)]}>
             <View style={[styles.rampSwatch, { backgroundColor: hex }]} />
-            <Text style={text('caption')} numberOfLines={1}>
+            <Text style={[text('caption'), alignText(flip)]} numberOfLines={1}>
                 {label}
             </Text>
         </View>
@@ -494,6 +503,7 @@ const styles = StyleSheet.create({
         borderRadius: radius.card,
         borderTopRightRadius: 4,
     },
+    previewBubbleRtl: { borderTopRightRadius: radius.card, borderTopLeftRadius: 4 },
     previewActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     previewButton: {
         flex: 1,
@@ -543,7 +553,7 @@ const styles = StyleSheet.create({
     hexSwatch: { width: 18, height: 18, borderRadius: 4 },
     ramp: { flexDirection: 'row', gap: 8 },
     rampChip: { flex: 1, gap: 4 },
-    rampSwatch: { height: pref.rampChip, borderRadius: 6 },
+    rampSwatch: { height: pref.rampChip, borderRadius: 6, alignSelf: 'stretch' },
     check: {
         minHeight: size.buttonPrimary,
         flexDirection: 'row',
@@ -554,6 +564,7 @@ const styles = StyleSheet.create({
         borderRadius: radius.inner,
     },
     checkDot: { width: 6, height: 6, borderRadius: 3 },
+    checkText: { flex: 1 },
     reset: {
         flexDirection: 'row',
         alignItems: 'center',

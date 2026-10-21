@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { color, border, layout, text } from '../../theme/tokens';
+import { useLayoutRTL, row, alignText } from '../../contexts/LayoutDirectionContext';
 
 /**
  * Detail row — label left, value right, 12 gap, baseline aligned.
@@ -21,8 +22,9 @@ interface DetailRowProps {
 }
 
 export function DetailRow({ label, value, total, struck, valueColor, children }: DetailRowProps) {
+    const flip = useLayoutRTL();
     return (
-        <View style={[styles.row, total && styles.totalRow]}>
+        <View style={[styles.row, row(flip), total && styles.totalRow]}>
             <Text style={total ? text('rowValue') : text('rowLabel')} numberOfLines={1}>
                 {label}
             </Text>
@@ -31,6 +33,7 @@ export function DetailRow({ label, value, total, struck, valueColor, children }:
                     style={[
                         total ? text('amount') : text('rowValue'),
                         styles.value,
+                        flip && { textAlign: 'left' },
                         struck && styles.struck,
                         valueColor ? { color: valueColor } : null,
                     ]}

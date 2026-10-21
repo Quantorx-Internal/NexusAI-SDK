@@ -7,6 +7,7 @@ import { tenureLabel } from '../../../lib/loans';
 import { LoanOption, LoanOptionsUI } from '../../../types';
 import { productVisual } from './productVisuals';
 import { CURRENCY_WORD, LOAN_LIST_WORDS, LoanLocale, money, plain } from './loanWords';
+import { useLayoutRTL, row, alignText, alignStart, alignEnd } from '../../../contexts/LayoutDirectionContext';
 
 /**
  * Family D · LoanOffers — the loans the user can apply for (design §5a).
@@ -67,16 +68,17 @@ export function LoanOffersBlock({
     const featured = available.find(o => o.product.id === options.featured) ?? null;
     const others = available.filter(o => o !== featured);
     const open = live && !disabled && !chosen && onOpen ? onOpen : undefined;
+    const flip = useLayoutRTL();
 
     return (
         <Card variant="info">
-            <View style={styles.header}>
-                <Text style={[text('cardTitle'), styles.title]} numberOfLines={1}>
+            <View style={[styles.header, row(flip)]}>
+                <Text style={[text('cardTitle'), styles.title, alignText(flip)]} numberOfLines={1}>
                     {words.title}
                 </Text>
                 {available.length > 0 ? <Text style={text('caption')}>{words.count(available.length)}</Text> : null}
             </View>
-            <Text style={[text('body', { color: color.text.secondary }), styles.subtitle]}>
+            <Text style={[text('body', { color: color.text.secondary }), styles.subtitle, alignText(flip)]}>
                 {available.length ? words.subtitle : words.noneNote}
             </Text>
 
@@ -97,7 +99,7 @@ export function LoanOffersBlock({
 
             {others.length > 0 ? (
                 <View style={styles.section}>
-                    {featured ? <Text style={[text('caption'), styles.sectionLabel]}>{words.others}</Text> : null}
+                    {featured ? <Text style={[text('caption'), styles.sectionLabel, alignText(flip)]}>{words.others}</Text> : null}
                     <View>
                         {others.map((option, index) => (
                             <React.Fragment key={option.product.id}>
@@ -116,7 +118,7 @@ export function LoanOffersBlock({
 
             {unavailable.length > 0 ? (
                 <View style={styles.section}>
-                    <Text style={[text('caption'), styles.sectionLabel]}>{words.unavailable}</Text>
+                    <Text style={[text('caption'), styles.sectionLabel, alignText(flip)]}>{words.unavailable}</Text>
                     <View>
                         {unavailable.map((option, index) => (
                             <React.Fragment key={option.product.id}>
@@ -128,7 +130,7 @@ export function LoanOffersBlock({
                 </View>
             ) : null}
 
-            <Text style={[text('caption'), styles.disclaimer]}>{words.disclaimer}</Text>
+            <Text style={[text('caption'), styles.disclaimer, alignText(flip)]}>{words.disclaimer}</Text>
         </Card>
     );
 }
@@ -151,6 +153,7 @@ function Featured({ option, locale, opened, onOpen }: ItemProps) {
     const plan = featuredPlan(option);
     const fit = fitOf(option);
     const inYears = plan ? plan.months % 12 === 0 : false;
+    const flip = useLayoutRTL();
 
     return (
         <Pressable
@@ -159,16 +162,16 @@ function Featured({ option, locale, opened, onOpen }: ItemProps) {
             accessibilityRole={onOpen ? 'button' : undefined}
             style={({ pressed }) => [styles.featured, { borderColor: color.borderBrand }, pressed && onOpen && styles.featuredPressed]}
         >
-            <View style={styles.featuredHeader}>
+            <View style={[styles.featuredHeader, row(flip)]}>
                 <IconBox box={size.iconBox.lg} background={color.brand[600]}>
                     <Icon size={size.icon.lg} color={color.text.inverse} strokeWidth={iconStroke} />
                 </IconBox>
-                <View style={styles.featuredTitles}>
-                    <Text style={text('cardTitle')} numberOfLines={1}>
+                <View style={[styles.featuredTitles, alignStart(flip)]}>
+                    <Text style={[text('cardTitle'), alignText(flip)]} numberOfLines={1}>
                         {name}
                     </Text>
                     {benefit ? (
-                        <Text style={text('caption')} numberOfLines={2}>
+                        <Text style={[text('caption'), alignText(flip)]} numberOfLines={2}>
                             {benefit}
                         </Text>
                     ) : null}
@@ -181,26 +184,26 @@ function Featured({ option, locale, opened, onOpen }: ItemProps) {
             </View>
 
             {plan ? (
-                <View style={styles.estimate}>
-                    <View style={styles.estimateColumn}>
+                <View style={[styles.estimate, row(flip)]}>
+                    <View style={[styles.estimateColumn, alignStart(flip)]}>
                         <Text style={text('caption')}>{words.estimated}</Text>
                         <Text numberOfLines={1}>
                             <Text style={[text('amount'), styles.tabular]}>{plain(Math.round(plan.monthly))}</Text>
                             <Text style={text('caption')}>{` ${CURRENCY_WORD[locale]} ${words.perMonth}`}</Text>
                         </Text>
                     </View>
-                    <View style={styles.estimateColumn}>
+                    <View style={[styles.estimateColumn, alignStart(flip)]}>
                         <Text style={text('caption')}>{words.amount}</Text>
-                        <Text style={[text('rowValue'), styles.tabular]} numberOfLines={2}>
+                        <Text style={[text('rowValue'), styles.tabular, alignText(flip)]} numberOfLines={2}>
                             {money(plan.amount, locale)} · {tenureLabel(plan.months, locale, inYears)}
                         </Text>
                     </View>
                 </View>
             ) : null}
 
-            <View style={styles.featuredFooter}>
+            <View style={[styles.featuredFooter, alignStart(flip)]}>
                 <FitWord fit={fit} label={fit === 'unknown' ? words.onRequest : words.fitLong[fit]} />
-                <Text style={text('caption')} numberOfLines={1}>
+                <Text style={[text('caption'), alignText(flip)]} numberOfLines={1}>
                     {[option.rate[locale], option.tenure[locale]].filter(Boolean).join(' · ')}
                 </Text>
             </View>
@@ -218,27 +221,28 @@ function Row({ option, locale, opened, onOpen, blocked = false }: ItemProps & { 
     const meta = blocked
         ? option.blockers.map(b => b[locale]).join(' · ')
         : [option.rate[locale], option.tenure[locale]].filter(Boolean).join(' · ');
+    const flip = useLayoutRTL();
 
     return (
         <Pressable
             disabled={!onOpen}
             onPress={onOpen}
             accessibilityRole={onOpen ? 'button' : undefined}
-            style={({ pressed }) => [styles.row, pressed && onOpen && styles.rowPressed, blocked && styles.rowBlocked]}
+            style={({ pressed }) => [styles.row, row(flip), pressed && onOpen && styles.rowPressed, blocked && styles.rowBlocked]}
         >
             <IconBox box={size.iconBox.md} tone="brandTint">
                 <Icon size={size.icon.md} color={iconOn('brandTint')} strokeWidth={iconStroke} />
             </IconBox>
-            <View style={styles.rowText}>
-                <Text style={text('rowValue')} numberOfLines={1}>
+            <View style={[styles.rowText, alignStart(flip)]}>
+                <Text style={[text('rowValue'), alignText(flip)]} numberOfLines={1}>
                     {name}
                 </Text>
-                <Text style={text('caption')} numberOfLines={2}>
+                <Text style={[text('caption'), alignText(flip)]} numberOfLines={2}>
                     {meta}
                 </Text>
             </View>
             {!blocked ? (
-                <View style={styles.rowEnd}>
+                <View style={[styles.rowEnd, alignEnd(flip)]}>
                     {opened ? (
                         <Check size={size.icon.sm} color={color.success.fg} strokeWidth={iconStroke} />
                     ) : (
@@ -261,10 +265,11 @@ function Row({ option, locale, opened, onOpen, blocked = false }: ItemProps & { 
 
 /** One semantic dot + word: the fit, in the StatusPill grammar without the pill. */
 function FitWord({ fit, label }: { fit: FitKey; label: string }) {
+    const flip = useLayoutRTL();
     if (!label) return null;
     const set = toneSet(FIT_TONE[fit]);
     return (
-        <View style={styles.fitWord}>
+        <View style={[styles.fitWord, row(flip)]}>
             <View style={[styles.fitDot, { backgroundColor: set.fg }]} />
             <Text style={text('badge', { color: set.fg })} numberOfLines={1}>
                 {label}

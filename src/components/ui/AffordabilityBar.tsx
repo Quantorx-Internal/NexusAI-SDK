@@ -4,6 +4,7 @@ import { StatusPill } from './StatusPill';
 import { color, layout, loan, radius, text, toneSet, Tone } from '../../theme/tokens';
 import type { LoanBudget } from '../../types';
 import type { LoanAdvice } from '../../lib/loans';
+import { useLayoutRTL, row, alignStart } from '../../contexts/LayoutDirectionContext';
 
 /**
  * Affordability bar — the salary as one bar (design §5, shared element).
@@ -53,18 +54,19 @@ export function AffordabilityBar({ budget, monthly, advice, labels }: Affordabil
     const leftShare = Math.max(0, 1 - committedShare - installmentShare);
     const short = advice.left < 0;
     const sharePct = `${Math.round(advice.share * 100)}%`;
+    const flip = useLayoutRTL();
 
     return (
         <View style={styles.inset}>
-            <View style={styles.header}>
-                <View style={styles.salary}>
+            <View style={[styles.header, row(flip)]}>
+                <View style={[styles.salary, row(flip)]}>
                     <Text style={text('rowLabel')}>{labels.salary}</Text>
                     <Text style={[text('rowValue'), styles.tabular]}>{whole(budget.income)}</Text>
                 </View>
                 <StatusPill label={labels.fit[advice.fit]} tone={tone} dot />
             </View>
 
-            <View style={styles.bar}>
+            <View style={[styles.bar, row(flip)]}>
                 <View style={[styles.segment, { flex: committedShare, backgroundColor: color.borderStrong }]} />
                 {installmentShare > 0 ? (
                     <View style={[styles.segment, { flex: installmentShare, backgroundColor: set.fg }]} />
@@ -74,7 +76,7 @@ export function AffordabilityBar({ budget, monthly, advice, labels }: Affordabil
                 ) : null}
             </View>
 
-            <View style={styles.legend}>
+            <View style={[styles.legend, row(flip)]}>
                 <LegendColumn
                     swatch={{ backgroundColor: color.borderStrong }}
                     label={labels.committed}
@@ -116,9 +118,10 @@ function LegendColumn({
     value: string;
     valueColor?: string;
 }) {
+    const flip = useLayoutRTL();
     return (
-        <View style={styles.column}>
-            <View style={styles.columnLabel}>
+        <View style={[styles.column, alignStart(flip)]}>
+            <View style={[styles.columnLabel, row(flip)]}>
                 <View style={[styles.swatch, swatch]} />
                 <Text style={text('caption')} numberOfLines={1}>
                     {label}

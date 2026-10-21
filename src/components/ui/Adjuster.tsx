@@ -12,6 +12,7 @@ import {
 import { Minus, Plus } from 'lucide-react-native';
 import { color, loan, radius, size, text, iconStroke } from '../../theme/tokens';
 import { nudge, snap } from '../../lib/loans';
+import { useLayoutRTL, useVisualRTL, row } from '../../contexts/LayoutDirectionContext';
 
 /**
  * Adjuster — label + stepper pair + slider (design §5c).
@@ -64,14 +65,15 @@ export function Adjuster({
 }: AdjusterProps) {
     const clamped = Math.min(Math.max(value, min), max);
     const ratio = max > min ? (clamped - min) / (max - min) : 0;
+    const flip = useLayoutRTL();
 
     return (
         <View style={styles.block}>
-            <View style={styles.row}>
+            <View style={[styles.row, row(flip)]}>
                 <Text style={text('rowLabel')} numberOfLines={1}>
                     {label}
                 </Text>
-                <View style={styles.stepper}>
+                <View style={[styles.stepper, row(flip)]}>
                     <StepButton
                         direction={-1}
                         accessibilityLabel={`${lessLabel}: ${label}`}
@@ -145,6 +147,9 @@ interface SliderProps {
 
 function Slider({ ratio, min, max, step, disabled, accessibilityLabel, accessibilityValue, onChange }: SliderProps) {
     const [width, setWidth] = useState(0);
+    const visualRTL = useVisualRTL();
+    const visualRef = useRef(visualRTL);
+    visualRef.current = visualRTL;
     const trackRef = useRef<View>(null);
     const originRef = useRef({ x: 0, width: 0 });
     // The latest props, read from inside the responder without recreating it.
@@ -159,7 +164,7 @@ function Slider({ ratio, min, max, step, disabled, accessibilityLabel, accessibi
         const { x, width: w } = originRef.current;
         if (w <= 0) return null;
         let r = (pageX - x) / w;
-        if (I18nManager.isRTL) r = 1 - r;
+        if (visualRef.current) r = 1 - r;
         r = Math.min(1, Math.max(0, r));
         const { min: lo, max: hi, step: s } = live.current;
         return snap(lo + r * (hi - lo), lo, hi, s);
@@ -204,9 +209,14 @@ function Slider({ ratio, min, max, step, disabled, accessibilityLabel, accessibi
             {...responder.panHandlers}
         >
             <View style={styles.track}>
-                <View style={[styles.fill, { width: fillWidth }]} />
+                <View style={[styles.fill, { width: fillWidth }, visualRTL !== I18nManager.isRTL && { alignSelf: 'flex-end' }]} />
             </View>
-            {width > 0 ? <View style={[styles.thumb, { start: thumbStart }]} pointerEvents="none" /> : null}
+            {width > 0 ? (
+                <View
+                    style={[styles.thumb, visualRTL !== I18nManager.isRTL ? { end: thumbStart } : { start: thumbStart }]}
+                    pointerEvents="none"
+                />
+            ) : null}
         </View>
     );
 }
@@ -227,6 +237,8 @@ function Ticks({
     onChange: (value: number) => void;
 }) {
     const [width, setWidth] = useState(0);
+    // Mirrored by hand: the first tick sits at the visual start, which is the engine's end.
+    const mirrored = useVisualRTL() !== I18nManager.isRTL;
     if (ticks.length === 0) return null;
 
     return (
@@ -236,10 +248,14 @@ function Ticks({
                 const last = index === ticks.length - 1;
                 const ratio = max > min ? (tick.value - min) / (max - min) : 0;
                 const position = first
-                    ? { start: 0 }
+                    ? (mirrored ? { end: 0 } : { start: 0 })
                     : last
-                        ? { end: 0 }
-                        : { start: ratio * width - TICK_WIDTH / 2, width: TICK_WIDTH, alignItems: 'center' as const };
+                        ? (mirrored ? { start: 0 } : { end: 0 })
+                        : {
+                            [mirrored ? 'end' : 'start']: ratio * width - TICK_WIDTH / 2,
+                            width: TICK_WIDTH,
+                            alignItems: 'center' as const,
+                        };
                 const current = tick.value === value;
                 return (
                     <Pressable
