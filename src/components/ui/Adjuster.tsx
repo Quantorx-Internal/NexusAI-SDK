@@ -73,7 +73,8 @@ export function Adjuster({
                 <Text style={text('rowLabel')} numberOfLines={1}>
                     {label}
                 </Text>
-                <View style={[styles.stepper, row(flip)]}>
+                {/* The stepper keeps minus on the left and plus on the right in both directions, like a number line. */}
+                <View style={styles.stepper}>
                     <StepButton
                         direction={-1}
                         accessibilityLabel={`${lessLabel}: ${label}`}
