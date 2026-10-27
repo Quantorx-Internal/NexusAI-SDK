@@ -1,3 +1,4 @@
+import * as FileSystem from 'expo-file-system/legacy';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     AudioPlayer,
@@ -202,14 +203,15 @@ export function useSpeech(options: UseSpeechOptions = {}): UseSpeechReturn {
             });
 
             let playedAny = false;
-            for (const job of batch.jobs) {
-                const chunk = await job;
+            for await (const chunk of batch.jobs) {
                 if (
                     controller.signal.aborted
                     || isDisposedRef.current
                     || runId !== runIdRef.current
-                ) return;
-                if (!chunk) continue;
+                ) {
+                    await FileSystem.deleteAsync(chunk.uri, { idempotent: true });
+                    return;
+                }
 
                 if (!playedAny) {
                     await setAudioModeAsync({
@@ -221,8 +223,12 @@ export function useSpeech(options: UseSpeechOptions = {}): UseSpeechReturn {
                     setIsSpeaking(true);
                 }
 
-                const played = await playAudioChunk(chunk.uri, runId);
-                playedAny = playedAny || played;
+                try {
+                    const played = await playAudioChunk(chunk.uri, runId);
+                    playedAny = playedAny || played;
+                } finally {
+                    await FileSystem.deleteAsync(chunk.uri, { idempotent: true }).catch(() => {});
+                }
             }
 
             if (runId === runIdRef.current && !isDisposedRef.current) {

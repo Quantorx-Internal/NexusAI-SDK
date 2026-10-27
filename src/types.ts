@@ -103,6 +103,8 @@ export interface ChatMessage {
     cards?: Card[];
     bills?: Bill[];
     spendingBreakdown?: SpendingBreakdown[];
+    spendingSummary?: { totalSpending: number; period: string; label: string; labelAr: string; currency: string };
+    dataUnavailable?: string[];
     subscriptions?: Subscription[];
     spendingInsights?: SpendingInsight[];
     // Resolved transaction rows for ui.transactionList

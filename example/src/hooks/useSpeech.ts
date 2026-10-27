@@ -157,8 +157,7 @@ export function useSpeech(options: UseSpeechOptions = {}): UseSpeechReturn {
             });
 
             let playedAny = false;
-            for (const job of batch.jobs) {
-                const chunk = await job;
+            for await (const chunk of batch.jobs) {
                 if (controller.signal.aborted || runId !== runIdRef.current) return;
                 if (!chunk) continue;
 

@@ -1,3 +1,4 @@
+import { normaliseResponseData } from './responseData';
 import { ChatEvent, ChatMessageUI, LoanOfferUI, LoanOptionsUI, SpendingBreakdown } from '../types';
 import { ENV } from '../config/constants';
 import { demoLoanOptions, findLoanProduct, loanOffer } from '../lib/loanOptions';
@@ -1137,30 +1138,20 @@ export class ChatService {
      *    the message goes clean, with only the advisor's note appended.
      *  - CHAT_AGENT=n8n: the old workflow at N8N_WEBHOOK_URL, which reads the
      *    notes from the text and a language instruction.
-     *  Whichever is chosen but fails falls back to the other, then to the
-     *  built-in mock flows.
+     *  Live requests never fall back to another backend or demo data.
+     *  Set CHAT_AGENT=mock explicitly for the offline demo.
      */
     static async sendMessage(content: string, sessionId: string, locale: string, options: SendMessageOptions = {}): Promise<any> {
         const { event = null, note = null } = options;
-        const preferApi = ENV.CHAT_AGENT !== 'n8n';
-        const order = preferApi
-            ? [ChatService.askApi, ChatService.askN8n]
-            : [ChatService.askN8n, ChatService.askApi];
-
-        for (const ask of order) {
-            try {
-                const answer = await ask(content, sessionId, locale, event, note);
-                if (answer) return answer;
-            } catch (error) {
-                console.error(`ChatService: ${ask.name} failed`, error);
-            }
+        if (ENV.CHAT_AGENT === 'mock') {
+            const demo = getMockResponse(content, sessionId, locale, event);
+            if (demo) return demo;
+            throw new Error('No demo flow matched');
         }
-
-        // Offline: the built-in flows, which draw the same cards.
-        console.log('ChatService: Falling back to mock response...');
-        const fallbackMock = getMockResponse(content, sessionId, locale, event);
-        if (fallbackMock) return fallbackMock;
-        throw new Error('No chat backend answered and no mock flow matched');
+        const ask = ENV.CHAT_AGENT === 'n8n' ? ChatService.askN8n : ChatService.askApi;
+        const answer = await ask(content, sessionId, locale, event, note);
+        if (!answer) throw new Error('The selected chat backend is not configured');
+        return answer;
     }
 
     /** The in-app agent at /api/chat. Null when no API callback is configured. */
@@ -1192,7 +1183,7 @@ export class ChatService {
         }
         const data = await response.json();
         if (!data || typeof data.message !== 'string') throw new Error('Chat API returned no message');
-        return attachMockData({ ...data, ui: normaliseUi(data.ui, event) }, sessionId);
+        return attachResponseData({ ...data, ui: normaliseUi(data.ui, event) }, sessionId);
     }
 
     /** The old n8n workflow. Null when no webhook is configured. */
@@ -1242,7 +1233,7 @@ export class ChatService {
             // If no structured response, just return the data with mock data attached
             if (!data.structured) {
                 console.log('ChatService: No structured data, using direct response');
-                return await attachMockData({ ...data, ui: normaliseUi(data.ui, event) }, sessionId);
+                return await attachResponseData({ ...data, ui: normaliseUi(data.ui, event) }, sessionId);
             }
 
             let parsed: any;
@@ -1272,7 +1263,7 @@ export class ChatService {
             }
 
             // Attach mock data based on UI flags (same as web app)
-            return await attachMockData({ ...parsed, ui: normaliseUi(parsed.ui, event) }, sessionId);
+            return await attachResponseData({ ...parsed, ui: normaliseUi(parsed.ui, event) }, sessionId);
         }
     }
 
@@ -1289,31 +1280,10 @@ export class ChatService {
 }
 
 // Attach mock data based on UI flags from N8N response
-async function attachMockData(parsed: any, sessionId?: string): Promise<any> {
+async function attachResponseData(parsed: any, sessionId?: string): Promise<any> {
     const result = { ...parsed };
 
-    // The server sends its own rows for the lists it has; the mocks fill the rest.
-    if (parsed.ui?.showAccounts && !Array.isArray(result.accounts)) {
-        result.accounts = mockAccounts;
-    }
-    if (parsed.ui?.showBeneficiaries && !Array.isArray(result.beneficiaries)) {
-        result.beneficiaries = mockBeneficiaries;
-    }
-    if (parsed.ui?.showCards && !Array.isArray(result.cards)) {
-        result.cards = mockCards;
-    }
-    if (parsed.ui?.showBills && !Array.isArray(result.bills)) {
-        result.bills = mockBills;
-    }
-    if (parsed.ui?.showSpendingBreakdown) {
-        // Only use mock data as fallback if N8N response doesn't include spending data
-        if (!result.spendingBreakdown || result.spendingBreakdown.length === 0) {
-            result.spendingBreakdown = generateRandomSpendingBreakdown();
-        }
-    }
-    if (parsed.ui?.showSubscriptions) {
-        result.subscriptions = mockSubscriptions;
-    }
+    Object.assign(result, normaliseResponseData(parsed));
     if (parsed.ui?.spendingInsights) {
         result.spendingInsights = parsed.ui.spendingInsights;
     }

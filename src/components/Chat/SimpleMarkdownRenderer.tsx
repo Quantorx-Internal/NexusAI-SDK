@@ -57,6 +57,7 @@ interface SimpleMarkdownRendererProps {
     cardPreview?: CardPreview;
     cardActionSuccess?: CardActionSuccess;
     spendingBreakdown?: SpendingBreakdown[];
+    spendingSummary?: { totalSpending: number; label: string; labelAr: string };
     spendingInsights?: SpendingInsight[];
     subscriptions?: Subscription[];
     bills?: Bill[];
@@ -133,6 +134,7 @@ export function SimpleMarkdownRenderer({
     cardPreview,
     cardActionSuccess,
     spendingBreakdown = [],
+    spendingSummary,
     spendingInsights = [],
     subscriptions = [],
     bills = [],
@@ -334,7 +336,8 @@ export function SimpleMarkdownRenderer({
                     {hasSpendingBreakdown && (
                         <SpendingBreakdownBlock
                             breakdown={spendingBreakdown}
-                            total={spendingBreakdown.reduce((sum, item) => sum + item.amount, 0)}
+                            total={spendingSummary?.totalSpending ?? spendingBreakdown.reduce((sum, item) => sum + item.amount, 0)}
+                            periodLabel={spendingSummary ? (locale === 'ar' ? spendingSummary.labelAr : spendingSummary.label) : ''}
                             locale={locale}
                         />
                     )}

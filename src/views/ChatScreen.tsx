@@ -24,6 +24,7 @@ import { mockCards } from '../data/cards';
 import { mockSpendingBreakdown } from '../data/spending';
 import { AGENT_VOICES, AgentVoice, AgentVoiceId, getAgentVoice } from '../config/agentVoices';
 import { color } from '../theme/tokens';
+import { ENV } from '../config/constants';
 
 const AGENT_VOICE_STORAGE_KEY = '@ai_assistant_agent_voice';
 
@@ -33,6 +34,7 @@ export function ChatScreen() {
     const [showPreferences, setShowPreferences] = React.useState(false);
     const { messages, isLoading, isTranscribing, sendMessage, handlers, isRecording, level, silenceProgress, startRecording, stopRecording, cancelRecording, resetChat } = useChatViewModel({ locale });
     const flatListRef = useRef<FlatList>(null);
+    const [availableVoices, setAvailableVoices] = React.useState(AGENT_VOICES.filter(v => v.id !== 'sara-omni'));
     const [selectedVoiceId, setSelectedVoiceId] = React.useState<AgentVoiceId>('alaa-omni');
     const selectedVoice = useMemo(() => getAgentVoice(selectedVoiceId), [selectedVoiceId]);
     const { speak, stop, toggle, isSpeaking, isLoading: isLoadingSpeech, currentMessageId } = useSpeech({ language: locale, agentVoiceId: selectedVoiceId });
@@ -44,12 +46,26 @@ export function ChatScreen() {
     const hasSpokenWelcomeRef = useRef(false);
 
     useEffect(() => {
-        AsyncStorage.getItem(AGENT_VOICE_STORAGE_KEY)
-            .then((savedVoiceId) => {
-                const savedVoice = getAgentVoice(savedVoiceId || undefined);
-                setSelectedVoiceId(savedVoice.id);
-            })
-            .catch((error) => console.warn('Failed to load selected agent voice:', error));
+        let cancelled = false;
+        const controller = new AbortController();
+        const root = ENV.API_CALLBACK_URL?.replace(/\/+$/, '').replace(/\/api$/i, '');
+        Promise.all([
+            AsyncStorage.getItem(AGENT_VOICE_STORAGE_KEY),
+            root ? fetch(`${root}/api/tts`, { signal: controller.signal }).then(async response => {
+                if (!response.ok) throw new Error('Voice catalogue unavailable');
+                return response.json();
+            }) : Promise.reject(new Error('Speech API is not configured')),
+        ]).then(([savedVoiceId, catalogue]) => {
+            if (cancelled) return;
+            const available = AGENT_VOICES.filter(voice => catalogue.voices?.some((v: { id: string }) => v.id === voice.id));
+            setAvailableVoices(available);
+            // Never show Sara while playing another person's fallback preset.
+            const selected = available.find(v => v.id === savedVoiceId) ?? available[0];
+            if (selected) setSelectedVoiceId(selected.id);
+        }).catch(error => {
+            if (!cancelled) console.warn('Failed to load voice catalogue:', error);
+        });
+        return () => { cancelled = true; controller.abort(); };
     }, []);
 
     // Compute welcome summary from mock data
@@ -440,7 +456,7 @@ export function ChatScreen() {
                         <Text style={[styles.voiceSheetTitle, isRTL && styles.textRTL]}>
                             {locale === 'ar' ? 'اختر صوت المساعد' : 'Select agent voice'}
                         </Text>
-                        {AGENT_VOICES.map((voice) => {
+                        {availableVoices.map((voice) => {
                             const isSelected = voice.id === selectedVoiceId;
                             return (
                                 <TouchableOpacity
