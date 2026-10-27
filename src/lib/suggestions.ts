@@ -134,7 +134,10 @@ export function computeSuggestions(ctx: SuggestionContext): Suggestion[] {
     const used = new Set(exclude);
 
     const lead = leadSuggestion({ ...ctx, locale });
-    const rest = standingIntents(locale).filter(s => !used.has(s.message.toLowerCase()));
+    // A standing chip never repeats the lead: the same message twice in one row.
+    const rest = standingIntents(locale).filter(
+        s => !used.has(s.message.toLowerCase()) && s.message.toLowerCase() !== lead?.message.toLowerCase()
+    );
 
     const out: Suggestion[] = [];
     if (lead && !used.has(lead.message.toLowerCase())) out.push(lead);
