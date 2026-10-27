@@ -78,6 +78,7 @@ export function ChatScreen() {
 
         return {
             totalBalance,
+            accounts: mockAccounts.length,
             monthlySpending,
             pendingBills: { count: pendingBills.length, amount: pendingBillsAmount },
             activeCards,
@@ -87,7 +88,7 @@ export function ChatScreen() {
     const getWelcomeSpeechText = useCallback(() => {
         const clientName = locale === 'ar' ? 'محمد' : 'Mohammed';
         const greeting = locale === 'ar' ? `هلا ${clientName}` : `Hello, ${clientName}!`;
-        const subGreeting = locale === 'ar' ? 'كيف اقدر افيدك اليوم ؟' : 'How can I help you today?';
+        const subGreeting = locale === 'ar' ? 'كيف أقدر أفيدك؟' : 'How can I help you today?';
         return `${greeting} ${subGreeting}`;
     }, [locale]);
 
@@ -282,6 +283,8 @@ export function ChatScreen() {
                 cards: mockCards,
                 locale,
                 exclude: messages.filter(m => m.role === 'user').map(m => m.content),
+                // The welcome screen shows bills in its own row, so the chip slot promotes loans.
+                promote: messages.length === 0 ? 'loans' : undefined,
             }),
         [messages, locale]
     );

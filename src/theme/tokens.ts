@@ -139,15 +139,15 @@ export const elevation = {
  * with a mic bolted on — so its metrics are specified separately from cards.
  */
 export const composer = {
-    barHeight: 52,
-    barRadius: 26,
+    barHeight: 48,
+    barRadius: 24,
     barPadStart: 18,
     barPadEnd: 6,
     /** One circle, two glyphs — the bar never grows a second button. */
     actionCircle: 40,
     actionGlyph: 20,
     focusBorder: 1.5,
-    chipHeight: 32,
+    chipHeight: 36,
     chipPadH: 12,
     chipGap: 8,
     /** chip row → composer, and composer → home indicator. */
@@ -282,6 +282,29 @@ export const preferences = {
     entryPressedScale: 0.94,
 } as const;
 
+/**
+ * Welcome screen (design §7b): one hero on the instrument gradient, a
+ * summary row, four action tiles.
+ */
+export const welcome = {
+    contentPadding: 16,
+    sectionGap: 20,
+    heroHeight: 236,
+    /** The balance: 30/40 with 18pt decimals. */
+    heroSize: 30,
+    heroLine: 40,
+    heroDecimals: 18,
+    /** Stats inside the hero: 15/700 over a 12pt label. */
+    statSize: 15,
+    summaryRadius: 16,
+    tileRadius: 12,
+    iconSquare: 36,
+    /** Action tiles: equal targets, 52–84 high. */
+    tileMinHeight: 60,
+    /** The strip behind the chips and the composer. */
+    footerSurface: '#FBFAFC',
+} as const;
+
 /** Icons are lucide-react-native at strokeWidth 2. */
 export const iconStroke = 2;
 
@@ -316,6 +339,7 @@ export const tokens = {
     elevation,
     loan,
     preferences,
+    welcome,
 };
 
 export default tokens;

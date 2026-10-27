@@ -25,6 +25,8 @@ export interface SuggestionContext {
     locale?: 'en' | 'ar';
     /** Messages already sent — a chip never repeats the last answer. */
     exclude?: string[];
+    /** On the welcome screen the chip slot promotes loans; bills have their own row there. */
+    promote?: 'loans';
 }
 
 /** Below this, "low balance" is worth surfacing unprompted. */
@@ -41,6 +43,15 @@ const isOverdue = (bill: Bill) =>
  */
 function leadSuggestion(ctx: SuggestionContext): Suggestion | null {
     const isAr = ctx.locale === 'ar';
+
+    if (ctx.promote === 'loans') {
+        return {
+            id: 'lead-loans',
+            label: isAr ? 'كم أقدر آخذ تمويل؟' : 'How much financing can I get?',
+            message: isAr ? 'ايش التمويلات اللي اقدر اقدم عليها؟' : 'Which loans can I apply for?',
+            primary: true,
+        };
+    }
 
     const overdue = (ctx.bills || []).filter(isOverdue);
     if (overdue.length > 0) {
