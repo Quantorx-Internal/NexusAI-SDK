@@ -146,7 +146,9 @@ export class BankSnapshotService {
      * part that did not load leaves its figure out rather than guessing.
      */
     static welcomeSummary(snapshot: BankSnapshot): WelcomeSummary {
-        const pending = (snapshot.bills ?? []).filter(b => b.status === 'pending' || b.status === 'overdue');
+        // The agent counts "pending" as status pending; overdue bills are their own, more urgent, figure.
+        const pending = (snapshot.bills ?? []).filter(b => b.status === 'pending');
+        const overdue = (snapshot.bills ?? []).filter(b => b.status === 'overdue');
         const budget = BankSnapshotService.budget(snapshot);
         // The loan to lead with: the personal loan, sized to this month. The
         // agent checks eligibility when the user opens it; this only sizes it.
@@ -160,6 +162,9 @@ export class BankSnapshotService {
             spendingCategories: snapshot.spending?.breakdown.length ?? 0,
             pendingBills: snapshot.bills
                 ? { count: pending.length, amount: pending.reduce((sum, b) => sum + b.amount, 0) }
+                : null,
+            overdueBills: snapshot.bills
+                ? { count: overdue.length, amount: overdue.reduce((sum, b) => sum + b.amount, 0) }
                 : null,
             activeCards: snapshot.cards ? snapshot.cards.filter(c => c.status === 'active').length : null,
             loan: reach && personal

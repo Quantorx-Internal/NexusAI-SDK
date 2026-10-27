@@ -32,7 +32,10 @@ export interface WelcomeSummary {
     monthlySpending: number | null;
     /** How many categories the spending card shows. */
     spendingCategories?: number;
+    /** Bills with status pending, as the agent counts them. */
     pendingBills: { count: number; amount: number } | null;
+    /** Bills past their due date, counted apart because they are the urgent ones. */
+    overdueBills?: { count: number; amount: number } | null;
     activeCards: number | null;
     /** A loan the app already sized for this customer, for the stack. */
     loan?: { name: string; nameAr: string; upTo: number; monthly: number; months: number } | null;
@@ -79,13 +82,15 @@ function buildSegments(summary: WelcomeSummary | null, locale: Locale): Segment[
     const bills = summary?.pendingBills ?? null;
 
     // Nothing loaded: a greeting, and the question. The figures come when they come.
-    if (!summary || (!hasBalance && !hasSpending && !bills)) {
+    if (!summary || (!hasBalance && !hasSpending && !bills && !summary.overdueBills)) {
         return [{ kind: 'text', text: isAr ? `هلا ${name}. كيف أقدر أفيدك اليوم؟` : `Hello ${name}. How can I help you today?` }];
     }
 
+    const overdue = summary.overdueBills ?? null;
     const balance = hasBalance ? `${plain(summary.totalBalance!, 2)} ${currency}` : '';
     const spending = hasSpending ? `${plain(summary.monthlySpending!)} ${currency}` : '';
     const billsAmount = bills ? `${plain(bills.amount)} ${currency}` : '';
+    const overdueAmount = overdue ? `${plain(overdue.amount)} ${currency}` : '';
 
     if (isAr) {
         const segments: Segment[] = [{ kind: 'text', text: `هلا ${name}.` }];
@@ -105,7 +110,21 @@ function buildSegments(summary: WelcomeSummary | null, locale: Locale): Segment[
             segments.push(
                 { kind: 'text', text: ' عندك ' },
                 { kind: 'tag', text: arCount(bills.count, 'فاتورة', 'فاتورتين', 'فواتير', 'فاتورة'), tone: 'warning', message: 'اعرض فواتيري' },
-                { kind: 'text', text: ` معلّقة بـ ${billsAmount}، وأقدر أدفعها كلها الآن.` }
+                { kind: 'text', text: ` معلّقة بـ ${billsAmount}` }
+            );
+            if (overdue && overdue.count > 0) {
+                segments.push(
+                    { kind: 'text', text: '، و' },
+                    { kind: 'tag', text: arCount(overdue.count, 'فاتورة', 'فاتورتين', 'فواتير', 'فاتورة'), tone: 'danger', message: 'اعرض فواتيري المتأخرة' },
+                    { kind: 'text', text: ` متأخرة بـ ${overdueAmount}` }
+                );
+            }
+            segments.push({ kind: 'text', text: '، وأقدر أدفعها كلها الآن.' });
+        } else if (overdue && overdue.count > 0) {
+            segments.push(
+                { kind: 'text', text: ' عندك ' },
+                { kind: 'tag', text: arCount(overdue.count, 'فاتورة', 'فاتورتين', 'فواتير', 'فاتورة'), tone: 'danger', message: 'اعرض فواتيري المتأخرة' },
+                { kind: 'text', text: ` متأخرة بـ ${overdueAmount}، وأقدر أدفعها الآن.` }
             );
         } else if (bills) {
             segments.push({ kind: 'text', text: ' ما عندك فواتير معلّقة.' });
@@ -130,7 +149,21 @@ function buildSegments(summary: WelcomeSummary | null, locale: Locale): Segment[
         segments.push(
             { kind: 'text', text: ' You have ' },
             { kind: 'tag', text: `${bills.count} ${bills.count === 1 ? 'bill' : 'bills'}`, tone: 'warning', message: 'Show me my bills' },
-            { kind: 'text', text: ` pending, ${billsAmount} in all, and I can pay them now.` }
+            { kind: 'text', text: ` pending, ${billsAmount} in all` }
+        );
+        if (overdue && overdue.count > 0) {
+            segments.push(
+                { kind: 'text', text: ', and ' },
+                { kind: 'tag', text: `${overdue.count} overdue`, tone: 'danger', message: 'Show me my overdue bills' },
+                { kind: 'text', text: ` worth ${overdueAmount}` }
+            );
+        }
+        segments.push({ kind: 'text', text: ', and I can pay them now.' });
+    } else if (overdue && overdue.count > 0) {
+        segments.push(
+            { kind: 'text', text: ' You have ' },
+            { kind: 'tag', text: `${overdue.count} overdue ${overdue.count === 1 ? 'bill' : 'bills'}`, tone: 'danger', message: 'Show me my overdue bills' },
+            { kind: 'text', text: ` worth ${overdueAmount}, and I can pay them now.` }
         );
     } else if (bills) {
         segments.push({ kind: 'text', text: ' Nothing is pending.' });
