@@ -104,9 +104,9 @@ function standingIntents(locale: 'en' | 'ar'): Suggestion[] {
             message: isAr ? 'اعرض رصيدي' : 'Show my balance',
         },
         {
-            id: 'intent-spending',
-            label: isAr ? 'مصاريفي' : 'My spending',
-            message: isAr ? 'اعرض مصاريفي' : 'Show me my spending',
+            id: 'intent-goals',
+            label: isAr ? 'أهداف الادخار' : 'Savings goals',
+            message: isAr ? 'أبي أحدد هدف ادخار' : 'I want to set a savings goal',
         },
         {
             id: 'intent-savings',
