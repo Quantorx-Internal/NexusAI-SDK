@@ -1,3 +1,4 @@
+import { DirectionalView } from '../../contexts/LayoutDirectionContext';
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable } from 'react-native';
 import { Button } from '../ui';
@@ -99,7 +100,7 @@ function AmountPrompt({
     };
 
     return (
-        <View style={styles.wrap}>
+        <DirectionalView languageRTL={isAr} style={styles.wrap}>
             <View style={styles.headerRow}>
                 <Text style={text('caption')}>
                     {isAr ? 'المبلغ' : 'Amount'}
@@ -157,7 +158,7 @@ function AmountPrompt({
                 onPress={submit}
                 disabled={!valid || Boolean(error) || disabled}
             />
-        </View>
+        </DirectionalView>
     );
 }
 
@@ -184,7 +185,7 @@ function OtpPrompt({
     };
 
     return (
-        <View style={styles.wrap}>
+        <DirectionalView languageRTL={isAr} style={styles.wrap}>
             <Text style={text('caption')}>
                 {isAr ? 'أدخل الرمز المرسل إلى جوالك' : 'Enter the code sent to your mobile'}
             </Text>
@@ -214,7 +215,7 @@ function OtpPrompt({
                 onPress={submit}
                 disabled={!ready || disabled}
             />
-        </View>
+        </DirectionalView>
     );
 }
 
@@ -241,6 +242,7 @@ const styles = StyleSheet.create({
     },
     currencyActive: { backgroundColor: color.brand[600] },
     field: {
+        direction: 'ltr',
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
@@ -256,6 +258,7 @@ const styles = StyleSheet.create({
         flex: 1,
         color: color.text.primary,
         fontVariant: ['tabular-nums'],
+        writingDirection: 'ltr',
         textAlign: 'right',
         padding: 0,
     },
@@ -263,6 +266,7 @@ const styles = StyleSheet.create({
         flex: 1,
         color: color.text.primary,
         fontVariant: ['tabular-nums'],
+        writingDirection: 'ltr',
         letterSpacing: 8,
         textAlign: 'center',
         padding: 0,

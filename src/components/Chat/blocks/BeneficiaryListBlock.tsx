@@ -138,7 +138,7 @@ function BeneficiaryChip({
 }
 
 const styles = StyleSheet.create({
-    scroller: { gap: layout.scrollerGap, paddingRight: layout.scrollerPeek },
+    scroller: { gap: layout.scrollerGap, paddingEnd: layout.scrollerPeek },
     chip: {
         width: CHIP_WIDTH,
         height: 64,

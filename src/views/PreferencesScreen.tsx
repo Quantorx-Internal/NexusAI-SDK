@@ -9,7 +9,6 @@ import {
     Modal,
     KeyboardAvoidingView,
     Platform,
-    I18nManager,
 } from 'react-native';
 import { BrainCircuit, Sparkles, ChevronLeft, ChevronRight, Check, RotateCcw } from 'lucide-react-native';
 import { Button } from '../components/ui';
@@ -30,7 +29,7 @@ import {
     assistantName,
 } from '../theme/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { useLayoutRTL, row, alignText, alignStart, alignEnd } from '../contexts/LayoutDirectionContext';
+import { useLayoutRTL, useVisualRTL, row, alignText, alignStart, alignEnd } from '../contexts/LayoutDirectionContext';
 
 /**
  * Assistant preferences: theme and names (design §6).
@@ -161,8 +160,9 @@ export function PreferencesScreen({ locale = 'en', isRTL = false, onClose }: Pre
     }, [dirty, onClose]);
 
     const flip = useLayoutRTL();
+    const visualRTL = useVisualRTL();
     // The chevron points toward the reading start, whichever way the rows run.
-    const BackIcon = (flip ? !I18nManager.isRTL : I18nManager.isRTL) ? ChevronRight : ChevronLeft;
+    const BackIcon = visualRTL ? ChevronRight : ChevronLeft;
 
     return (
         <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -177,7 +177,7 @@ export function PreferencesScreen({ locale = 'en', isRTL = false, onClose }: Pre
                 >
                     <BackIcon size={size.icon.xl} color={color.text.primary} strokeWidth={iconStroke} />
                 </Pressable>
-                <Text style={[text('cardTitle'), styles.navTitle, alignText(flip)]} numberOfLines={1}>
+                <Text style={[text('cardTitle'), styles.navTitle, alignText(flip, visualRTL)]} numberOfLines={1}>
                     {words.title}
                 </Text>
                 <Pressable
@@ -200,13 +200,13 @@ export function PreferencesScreen({ locale = 'en', isRTL = false, onClose }: Pre
             <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
                 {/* Preview */}
                 <View style={styles.section}>
-                    <Text style={[text('caption'), styles.sectionLabel, alignText(flip)]}>{words.preview}</Text>
+                    <Text style={[text('caption'), styles.sectionLabel, alignText(flip, visualRTL)]}>{words.preview}</Text>
                     <Preview theme={preview} locale={locale} words={words} flip={flip} />
                 </View>
 
                 {/* Names */}
                 <View style={styles.section}>
-                    <Text style={[text('caption'), styles.sectionLabel, alignText(flip)]}>{words.names}</Text>
+                    <Text style={[text('caption'), styles.sectionLabel, alignText(flip, visualRTL)]}>{words.names}</Text>
                     <Field
                         label={words.nameEn}
                         value={draft.assistantNameEn}
@@ -234,7 +234,7 @@ export function PreferencesScreen({ locale = 'en', isRTL = false, onClose }: Pre
 
                 {/* Brand colour */}
                 <View style={styles.section}>
-                    <Text style={[text('caption'), styles.sectionLabel, alignText(flip)]}>{words.colour}</Text>
+                    <Text style={[text('caption'), styles.sectionLabel, alignText(flip, visualRTL)]}>{words.colour}</Text>
                     <View style={[styles.swatches, row(flip)]}>
                         {PRESET_COLORS.map(preset => {
                             const selected = hex === preset.hex;
@@ -286,7 +286,7 @@ export function PreferencesScreen({ locale = 'en', isRTL = false, onClose }: Pre
                                 accessibilityRole="text"
                             >
                                 <View style={[styles.checkDot, { backgroundColor: readable ? color.success.fg : color.danger.fg }]} />
-                                <Text style={[text('caption', { color: readable ? color.success.fgStrong : color.danger.fgStrong }), alignText(flip), styles.checkText]}>
+                                <Text style={[text('caption', { color: readable ? color.success.fgStrong : color.danger.fgStrong }), alignText(flip, visualRTL), styles.checkText]}>
                                     {readable ? words.passes(ratio) : words.fails(ratio)}
                                 </Text>
                             </View>
@@ -309,8 +309,8 @@ export function PreferencesScreen({ locale = 'en', isRTL = false, onClose }: Pre
             <Modal visible={askDiscard} transparent animationType="fade" onRequestClose={() => setAskDiscard(false)}>
                 <Pressable style={styles.backdrop} onPress={() => setAskDiscard(false)}>
                     <Pressable style={styles.dialog} onPress={() => undefined}>
-                        <Text style={[text('cardTitle'), alignText(flip)]}>{words.discardTitle}</Text>
-                        <Text style={[text('body', { color: color.text.secondary }), alignText(flip)]}>{words.discardBody}</Text>
+                        <Text style={[text('cardTitle'), alignText(flip, visualRTL)]}>{words.discardTitle}</Text>
+                        <Text style={[text('body', { color: color.text.secondary }), alignText(flip, visualRTL)]}>{words.discardBody}</Text>
                         <View style={[styles.dialogActions, row(flip)]}>
                             <Button label={words.keepEditing} kind="secondary" onPress={() => setAskDiscard(false)} style={styles.dialogButton} />
                             <Button
@@ -339,7 +339,7 @@ function Preview({ theme, locale, words, flip }: { theme: Theme; locale: Locale;
                 <View style={[styles.previewAvatar, { backgroundColor: c.primarySubtle }]}>
                     <BrainCircuit size={size.icon.md} color={c.primary} strokeWidth={iconStroke} />
                 </View>
-                <Text style={[text('rowValue'), styles.previewName, alignText(flip)]} numberOfLines={1}>
+                <Text style={[text('rowValue'), styles.previewName, alignText(flip, locale === 'ar')]} numberOfLines={1}>
                     {assistantName(theme, locale)}
                 </Text>
                 <Sparkles size={size.icon.sm} color={c.primary} strokeWidth={iconStroke} />
@@ -388,9 +388,10 @@ function Field({
 }) {
     const [focused, setFocused] = useState(false);
     const flip = useLayoutRTL();
+    const visualRTL = useVisualRTL();
     return (
         <View style={styles.field}>
-            <Text style={[text('rowLabel'), alignText(flip)]}>{label}</Text>
+            <Text style={[text('rowLabel'), alignText(flip, visualRTL)]}>{label}</Text>
             <View
                 style={[
                     styles.input,
@@ -413,16 +414,15 @@ function Field({
                     style={[
                         text(mono ? 'mono' : 'rowValue'),
                         styles.inputText,
-                        rtl && styles.inputRtl,
-                        !rtl && !mono && flip && { textAlign: 'left', writingDirection: 'ltr' },
+                        { direction: 'ltr', textAlign: rtl ? 'right' : 'left', writingDirection: rtl ? 'rtl' : 'ltr' },
                         Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : null,
                     ]}
                 />
             </View>
             {error ? (
-                <Text style={[text('caption', { color: color.danger.fg }), alignText(flip)]}>{error}</Text>
+                <Text style={[text('caption', { color: color.danger.fg }), alignText(flip, visualRTL)]}>{error}</Text>
             ) : help ? (
-                <Text style={[text('caption'), alignText(flip)]}>{help}</Text>
+                <Text style={[text('caption'), alignText(flip, visualRTL)]}>{help}</Text>
             ) : null}
         </View>
     );
@@ -430,10 +430,11 @@ function Field({
 
 function RampChip({ label, hex }: { label: string; hex: string }) {
     const flip = useLayoutRTL();
+    const visualRTL = useVisualRTL();
     return (
         <View style={[styles.rampChip, alignStart(flip)]}>
             <View style={[styles.rampSwatch, { backgroundColor: hex }]} />
-            <Text style={[text('caption'), alignText(flip)]} numberOfLines={1}>
+            <Text style={[text('caption'), alignText(flip, visualRTL)]} numberOfLines={1}>
                 {label}
             </Text>
         </View>

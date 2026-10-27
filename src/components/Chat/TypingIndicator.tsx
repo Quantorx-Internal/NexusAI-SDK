@@ -1,3 +1,4 @@
+import { DirectionalView } from '../../contexts/LayoutDirectionContext';
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { BrainCircuit } from 'lucide-react-native';
@@ -50,7 +51,7 @@ export function TypingIndicator({ isVisible, status, locale = 'en' }: TypingIndi
     const label = status || (locale === 'ar' ? 'جارٍ العمل…' : 'Working…');
 
     return (
-        <View style={styles.container}>
+        <DirectionalView languageRTL={locale === 'ar'} style={styles.container}>
             <View style={[styles.avatar, { backgroundColor: color.brand[50] }]}>
                 <BrainCircuit size={16} color={color.brand[600]} strokeWidth={iconStroke} />
             </View>
@@ -67,11 +68,11 @@ export function TypingIndicator({ isVisible, status, locale = 'en' }: TypingIndi
                         />
                     ))}
                 </View>
-                <Text style={text('rowValue', { color: color.text.secondary })} numberOfLines={1}>
+                <Text style={text('rowValue', { color: color.text.secondary, flexShrink: 1 })} numberOfLines={1}>
                     {label}
                 </Text>
             </View>
-        </View>
+        </DirectionalView>
     );
 }
 
@@ -91,6 +92,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     bubble: {
+        flexShrink: 1,
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,

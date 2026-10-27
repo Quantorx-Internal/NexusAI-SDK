@@ -162,7 +162,7 @@ function CardInstrument({
 }
 
 const styles = StyleSheet.create({
-    scroller: { gap: instrument.gap, paddingRight: instrument.peek },
+    scroller: { gap: instrument.gap, paddingEnd: instrument.peek },
     header: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
     headerText: { flex: 1 },
     name: {
@@ -208,6 +208,7 @@ const styles = StyleSheet.create({
         color: instrument.onSurfaceStrong,
         fontVariant: ['tabular-nums'],
         // Card numbers stay LTR in every locale.
+        direction: 'ltr',
         writingDirection: 'ltr',
     },
     bottomRow: {

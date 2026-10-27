@@ -185,7 +185,7 @@ function AccountInstrument({
 }
 
 const styles = StyleSheet.create({
-    scroller: { gap: instrument.gap, paddingRight: instrument.peek },
+    scroller: { gap: instrument.gap, paddingEnd: instrument.peek },
     header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     frostIcon: {
         width: instrument.iconSquare,
@@ -265,6 +265,7 @@ const styles = StyleSheet.create({
         fontFamily: font.mono,
         color: instrument.onSurface,
         // Masked numbers stay LTR in every locale.
+        direction: 'ltr',
         writingDirection: 'ltr',
     },
 });

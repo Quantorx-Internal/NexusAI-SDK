@@ -7,7 +7,7 @@ import { tenureLabel } from '../../../lib/loans';
 import { LoanOption, LoanOptionsUI } from '../../../types';
 import { productVisual } from './productVisuals';
 import { CURRENCY_WORD, LOAN_LIST_WORDS, LoanLocale, money, plain } from './loanWords';
-import { useLayoutRTL, row, alignText, alignStart, alignEnd } from '../../../contexts/LayoutDirectionContext';
+import { useLayoutRTL, useVisualRTL, row, alignText, alignStart, alignEnd } from '../../../contexts/LayoutDirectionContext';
 
 /**
  * Family D · LoanOffers — the loans the user can apply for (design §5a).
@@ -69,16 +69,17 @@ export function LoanOffersBlock({
     const others = available.filter(o => o !== featured);
     const open = live && !disabled && !chosen && onOpen ? onOpen : undefined;
     const flip = useLayoutRTL();
+    const visualRTL = useVisualRTL();
 
     return (
         <Card variant="info">
             <View style={[styles.header, row(flip)]}>
-                <Text style={[text('cardTitle'), styles.title, alignText(flip)]} numberOfLines={1}>
+                <Text style={[text('cardTitle'), styles.title, alignText(flip, visualRTL)]} numberOfLines={1}>
                     {words.title}
                 </Text>
                 {available.length > 0 ? <Text style={text('caption')}>{words.count(available.length)}</Text> : null}
             </View>
-            <Text style={[text('body', { color: color.text.secondary }), styles.subtitle, alignText(flip)]}>
+            <Text style={[text('body', { color: color.text.secondary }), styles.subtitle, alignText(flip, visualRTL)]}>
                 {available.length ? words.subtitle : words.noneNote}
             </Text>
 
@@ -99,7 +100,7 @@ export function LoanOffersBlock({
 
             {others.length > 0 ? (
                 <View style={styles.section}>
-                    {featured ? <Text style={[text('caption'), styles.sectionLabel, alignText(flip)]}>{words.others}</Text> : null}
+                    {featured ? <Text style={[text('caption'), styles.sectionLabel, alignText(flip, visualRTL)]}>{words.others}</Text> : null}
                     <View>
                         {others.map((option, index) => (
                             <React.Fragment key={option.product.id}>
@@ -118,7 +119,7 @@ export function LoanOffersBlock({
 
             {unavailable.length > 0 ? (
                 <View style={styles.section}>
-                    <Text style={[text('caption'), styles.sectionLabel, alignText(flip)]}>{words.unavailable}</Text>
+                    <Text style={[text('caption'), styles.sectionLabel, alignText(flip, visualRTL)]}>{words.unavailable}</Text>
                     <View>
                         {unavailable.map((option, index) => (
                             <React.Fragment key={option.product.id}>
@@ -130,7 +131,7 @@ export function LoanOffersBlock({
                 </View>
             ) : null}
 
-            <Text style={[text('caption'), styles.disclaimer, alignText(flip)]}>{words.disclaimer}</Text>
+            <Text style={[text('caption'), styles.disclaimer, alignText(flip, visualRTL)]}>{words.disclaimer}</Text>
         </Card>
     );
 }
@@ -154,6 +155,7 @@ function Featured({ option, locale, opened, onOpen }: ItemProps) {
     const fit = fitOf(option);
     const inYears = plan ? plan.months % 12 === 0 : false;
     const flip = useLayoutRTL();
+    const visualRTL = useVisualRTL();
 
     return (
         <Pressable
@@ -167,11 +169,11 @@ function Featured({ option, locale, opened, onOpen }: ItemProps) {
                     <Icon size={size.icon.lg} color={color.text.inverse} strokeWidth={iconStroke} />
                 </IconBox>
                 <View style={[styles.featuredTitles, alignStart(flip)]}>
-                    <Text style={[text('cardTitle'), alignText(flip)]} numberOfLines={1}>
+                    <Text style={[text('cardTitle'), alignText(flip, visualRTL)]} numberOfLines={1}>
                         {name}
                     </Text>
                     {benefit ? (
-                        <Text style={[text('caption'), alignText(flip)]} numberOfLines={2}>
+                        <Text style={[text('caption'), alignText(flip, visualRTL)]} numberOfLines={2}>
                             {benefit}
                         </Text>
                     ) : null}
@@ -194,7 +196,7 @@ function Featured({ option, locale, opened, onOpen }: ItemProps) {
                     </View>
                     <View style={[styles.estimateColumn, alignStart(flip)]}>
                         <Text style={text('caption')}>{words.amount}</Text>
-                        <Text style={[text('rowValue'), styles.tabular, alignText(flip)]} numberOfLines={2}>
+                        <Text style={[text('rowValue'), styles.tabular, alignText(flip, visualRTL)]} numberOfLines={2}>
                             {money(plan.amount, locale)} · {tenureLabel(plan.months, locale, inYears)}
                         </Text>
                     </View>
@@ -203,7 +205,7 @@ function Featured({ option, locale, opened, onOpen }: ItemProps) {
 
             <View style={[styles.featuredFooter, alignStart(flip)]}>
                 <FitWord fit={fit} label={fit === 'unknown' ? words.onRequest : words.fitLong[fit]} />
-                <Text style={[text('caption'), alignText(flip)]} numberOfLines={1}>
+                <Text style={[text('caption'), alignText(flip, visualRTL)]} numberOfLines={1}>
                     {[option.rate[locale], option.tenure[locale]].filter(Boolean).join(' · ')}
                 </Text>
             </View>
@@ -222,6 +224,7 @@ function Row({ option, locale, opened, onOpen, blocked = false }: ItemProps & { 
         ? option.blockers.map(b => b[locale]).join(' · ')
         : [option.rate[locale], option.tenure[locale]].filter(Boolean).join(' · ');
     const flip = useLayoutRTL();
+    const visualRTL = useVisualRTL();
 
     return (
         <Pressable
@@ -234,10 +237,10 @@ function Row({ option, locale, opened, onOpen, blocked = false }: ItemProps & { 
                 <Icon size={size.icon.md} color={iconOn('brandTint')} strokeWidth={iconStroke} />
             </IconBox>
             <View style={[styles.rowText, alignStart(flip)]}>
-                <Text style={[text('rowValue'), alignText(flip)]} numberOfLines={1}>
+                <Text style={[text('rowValue'), alignText(flip, visualRTL)]} numberOfLines={1}>
                     {name}
                 </Text>
-                <Text style={[text('caption'), alignText(flip)]} numberOfLines={2}>
+                <Text style={[text('caption'), alignText(flip, visualRTL)]} numberOfLines={2}>
                     {meta}
                 </Text>
             </View>
@@ -266,6 +269,7 @@ function Row({ option, locale, opened, onOpen, blocked = false }: ItemProps & { 
 /** One semantic dot + word: the fit, in the StatusPill grammar without the pill. */
 function FitWord({ fit, label }: { fit: FitKey; label: string }) {
     const flip = useLayoutRTL();
+    const visualRTL = useVisualRTL();
     if (!label) return null;
     const set = toneSet(FIT_TONE[fit]);
     return (

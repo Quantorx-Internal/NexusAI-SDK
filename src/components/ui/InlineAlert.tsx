@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { CircleAlert } from 'lucide-react-native';
 import { layout, radius, size, text, iconStroke, Tone, toneSet } from '../../theme/tokens';
-import { useLayoutRTL, row, alignText } from '../../contexts/LayoutDirectionContext';
+import { useLayoutRTL, useVisualRTL, row, alignText } from '../../contexts/LayoutDirectionContext';
 
 /**
  * Inline alert — a tinted strip inside a card, for a step that failed.
@@ -19,10 +19,11 @@ interface InlineAlertProps {
 export function InlineAlert({ message, tone = 'danger' }: InlineAlertProps) {
     const set = toneSet(tone);
     const flip = useLayoutRTL();
+    const visualRTL = useVisualRTL();
     return (
         <View style={[styles.strip, row(flip), { backgroundColor: set.bg, borderColor: set.border }]} accessibilityRole="alert">
             <CircleAlert size={size.icon.sm} color={set.fg} strokeWidth={iconStroke} />
-            <Text style={[text('caption', { color: set.fgStrong }), styles.message, alignText(flip)]}>{message}</Text>
+            <Text style={[text('caption', { color: set.fgStrong }), styles.message, alignText(flip, visualRTL)]}>{message}</Text>
         </View>
     );
 }

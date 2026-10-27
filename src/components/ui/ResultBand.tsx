@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { color, layout, size, text, Tone, toneSet } from '../../theme/tokens';
-import { useLayoutRTL, row, alignText } from '../../contexts/LayoutDirectionContext';
+import { useLayoutRTL, useVisualRTL, row, alignText } from '../../contexts/LayoutDirectionContext';
 
 /**
  * The Family C header band: one chassis, three bodies.
@@ -25,15 +25,16 @@ interface ResultBandProps {
 export function ResultBand({ title, time, tone = 'success', icon }: ResultBandProps) {
     const set = toneSet(tone);
     const flip = useLayoutRTL();
+    const visualRTL = useVisualRTL();
     return (
         <View style={[styles.band, row(flip), { backgroundColor: set.bg }]}>
             <View style={[styles.circle, { backgroundColor: set.fg }]}>{icon}</View>
             <View style={styles.titles}>
-                <Text style={[text('cardTitle', { color: set.fgStrong }), alignText(flip)]} numberOfLines={2}>
+                <Text style={[text('cardTitle', { color: set.fgStrong }), alignText(flip, visualRTL)]} numberOfLines={2}>
                     {title}
                 </Text>
                 {time ? (
-                    <Text style={[text('caption', { color: set.fg }), alignText(flip)]} numberOfLines={1}>
+                    <Text style={[text('caption', { color: set.fg }), alignText(flip, visualRTL)]} numberOfLines={1}>
                         {time}
                     </Text>
                 ) : null}

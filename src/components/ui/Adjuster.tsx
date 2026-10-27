@@ -5,7 +5,6 @@ import {
     Pressable,
     StyleSheet,
     PanResponder,
-    I18nManager,
     LayoutChangeEvent,
     GestureResponderEvent,
 } from 'react-native';
@@ -25,7 +24,7 @@ import { useLayoutRTL, useVisualRTL, row } from '../../contexts/LayoutDirectionC
  *
  * Fill and thumb are laid out with flex and the logical `start` edge, so the
  * engine mirrors them in RTL for free; only the touch-to-value arithmetic
- * reads I18nManager.
+ * uses the selected language.
  */
 
 export interface AdjusterTick {
@@ -149,6 +148,7 @@ interface SliderProps {
 function Slider({ ratio, min, max, step, disabled, accessibilityLabel, accessibilityValue, onChange }: SliderProps) {
     const [width, setWidth] = useState(0);
     const visualRTL = useVisualRTL();
+    const flip = useLayoutRTL();
     const visualRef = useRef(visualRTL);
     visualRef.current = visualRTL;
     const trackRef = useRef<View>(null);
@@ -210,11 +210,11 @@ function Slider({ ratio, min, max, step, disabled, accessibilityLabel, accessibi
             {...responder.panHandlers}
         >
             <View style={styles.track}>
-                <View style={[styles.fill, { width: fillWidth }, visualRTL !== I18nManager.isRTL && { alignSelf: 'flex-end' }]} />
+                <View style={[styles.fill, { width: fillWidth }, flip && { alignSelf: 'flex-end' }]} />
             </View>
             {width > 0 ? (
                 <View
-                    style={[styles.thumb, visualRTL !== I18nManager.isRTL ? { end: thumbStart } : { start: thumbStart }]}
+                    style={[styles.thumb, flip ? { end: thumbStart } : { start: thumbStart }]}
                     pointerEvents="none"
                 />
             ) : null}
@@ -239,7 +239,7 @@ function Ticks({
 }) {
     const [width, setWidth] = useState(0);
     // Mirrored by hand: the first tick sits at the visual start, which is the engine's end.
-    const mirrored = useVisualRTL() !== I18nManager.isRTL;
+    const mirrored = useLayoutRTL();
     if (ticks.length === 0) return null;
 
     return (

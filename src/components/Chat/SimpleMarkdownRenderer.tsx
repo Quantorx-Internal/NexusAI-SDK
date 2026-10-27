@@ -1,3 +1,4 @@
+import { DirectionalView } from '../../contexts/LayoutDirectionContext';
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import Markdown from 'react-native-markdown-display';
@@ -107,10 +108,6 @@ const markdownStyles = StyleSheet.create({
         fontSize: 15,
         lineHeight: 22,
     },
-    bodyRTL: {
-        textAlign: 'right',
-        writingDirection: 'rtl',
-    },
     paragraph: {
         marginBottom: 10,
     },
@@ -171,7 +168,6 @@ export function SimpleMarkdownRenderer({
     askLoanAdvisor,
     localLoanRemark,
     isRTL = false,
-    isLayoutRTL = false,
 }: SimpleMarkdownRendererProps) {
 
     const hasTransferPreview = isObject(transferPreview);
@@ -194,69 +190,27 @@ export function SimpleMarkdownRenderer({
     const hasLoanOffer = isObject(loanOffer) && isObject((loanOffer as LoanOfferUI).terms);
     const hasLoanOptions = isObject(loanOptions) && Array.isArray((loanOptions as LoanOptionsUI).available);
 
+    const readingStyle = { textAlign: 'left' as const, writingDirection: isRTL ? 'rtl' as const : 'ltr' as const };
     const mkStyles = {
         ...markdownStyles,
-        body: {
-            ...markdownStyles.body,
-            ...(isRTL ? {
-                textAlign: 'right' as const,
-                writingDirection: 'rtl' as const,
-            } : {}),
-        },
-        heading1: isRTL ? {
-            textAlign: 'right' as const,
-            writingDirection: 'rtl' as const,
-        } : {},
-        heading2: isRTL ? {
-            textAlign: 'right' as const,
-            writingDirection: 'rtl' as const,
-        } : {},
-        paragraph: {
-            ...markdownStyles.paragraph,
-            ...(isRTL ? {
-                flexDirection: 'row' as const,
-                justifyContent: 'flex-start' as const,
-            } : {})
-        },
-        // Explicitly style text nodes if possible
-        text: isRTL ? {
-            textAlign: 'right' as const,
-            writingDirection: 'rtl' as const,
-        } : {},
-        textgroup: isRTL ? {
-            textAlign: 'right' as const,
-            writingDirection: 'rtl' as const,
-            alignItems: 'flex-end' as const,
-        } : {},
-        // Fix for lists in RTL
-        bullet_list: isRTL ? {
-            alignItems: 'flex-end' as const,
-        } : {},
-        list_item: isRTL ? {
-            flexDirection: 'row-reverse' as const,
-            justifyContent: 'flex-end' as const,
-        } : {},
-        // Adjust spacing for bullets
-        bullet_list_icon: isRTL ? {
-            marginLeft: 8,
-            marginRight: 0,
-            fontSize: 20,
-        } : {
-            marginLeft: 0,
-            marginRight: 8,
-            fontSize: 20,
-        },
-        bullet_list_content: isRTL ? {
-            alignItems: 'flex-end' as const,
-            textAlign: 'right' as const,
-        } : {},
+        body: { ...markdownStyles.body, ...readingStyle },
+        heading1: readingStyle,
+        heading2: readingStyle,
+        text: readingStyle,
+        textgroup: readingStyle,
+        paragraph: { ...markdownStyles.paragraph, flexDirection: 'row' as const },
+        list_item: { ...markdownStyles.list_item, flexDirection: 'row' as const, alignItems: 'flex-start' as const },
+        bullet_list_icon: { marginLeft: 0, marginRight: 0, marginStart: 0, marginEnd: 8, fontSize: 20 },
+        ordered_list_icon: { marginLeft: 0, marginRight: 0, marginStart: 0, marginEnd: 8 },
+        bullet_list_content: { flex: 1 },
+        ordered_list_content: { flex: 1 },
     };
 
     return (
-        <View style={styles.container}>
+        <DirectionalView languageRTL={isRTL} style={styles.container}>
             {/* Text Content */}
             {content ? (
-                <View style={[styles.bubble, isLayoutRTL && styles.bubbleRTL]}>
+                <View style={styles.bubble}>
                     <Markdown style={mkStyles}>
                         {content}
                     </Markdown>
@@ -445,7 +399,7 @@ export function SimpleMarkdownRenderer({
                     )}
                 </View>
             )}
-        </View>
+        </DirectionalView>
     );
 }
 
@@ -458,14 +412,9 @@ const styles = StyleSheet.create({
         backgroundColor: '#F3F4F6', // gray-100/secondary
         padding: 12,
         borderRadius: 16,
-        borderTopLeftRadius: 0,
+        borderTopStartRadius: 0,
         alignSelf: 'flex-start',
         maxWidth: '100%',
-    },
-    bubbleRTL: {
-        borderTopLeftRadius: 16,
-        borderTopRightRadius: 0,
-        alignSelf: 'flex-end',
     },
     blocksContainer: {
         // Cards inside one message sit 8 apart; 20 separates messages.

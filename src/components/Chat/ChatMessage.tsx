@@ -1,3 +1,4 @@
+import { alignText } from '../../contexts/LayoutDirectionContext';
 import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator, I18nManager } from 'react-native';
 import { BrainCircuit, User, Volume2, VolumeX } from 'lucide-react-native';
@@ -242,14 +243,14 @@ export function ChatMessage({
             <View style={[styles.contentContainer, isUser && styles.userContentContainer]}>
                 {isUser ? (
                     <View style={userBubbleStyle}>
-                        <Text style={[styles.userText, isRTL && styles.textRTL]}>
+                        <Text style={[styles.userText, alignText(isLayoutRTL, isRTL)]}>
                             {message.display?.label ?? message.content}
                         </Text>
                     </View>
                 ) : (
                     <>
                         {!!message.dataUnavailable?.length && (
-                            <Text accessibilityRole="alert">
+                            <Text accessibilityRole="alert" style={alignText(isLayoutRTL, isRTL)}>
                                 {locale === 'ar' ? 'تعذر تحميل بيانات البطاقة. حاول مرة أخرى.' : 'Card data could not be loaded. Please try again.'}
                             </Text>
                         )}

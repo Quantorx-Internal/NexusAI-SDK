@@ -77,6 +77,7 @@ export function CopyField({ value, copiedLabel = 'Copied', pendingLabel = 'Pendi
 
 const styles = StyleSheet.create({
     field: {
+        direction: 'ltr',
         height: size.copyField,
         flexDirection: 'row',
         alignItems: 'center',
@@ -89,8 +90,7 @@ const styles = StyleSheet.create({
     pressed: { backgroundColor: color.surface3 },
     copied: { backgroundColor: color.success.bg },
     // Reference IDs are a forced-LTR island even in Arabic: they are read and
-    // typed character by character. `writingDirection` is the supported prop here;
-    // `direction` is not a valid React Native style.
+    // typed character by character. The containing field also scopes layout to LTR.
     value: { flexShrink: 1, textAlign: 'left', writingDirection: 'ltr' },
     copiedTag: { flexDirection: 'row', alignItems: 'center', gap: 4 },
 });

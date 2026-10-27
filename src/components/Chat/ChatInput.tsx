@@ -1,5 +1,6 @@
+import { DirectionalView, alignText } from '../../contexts/LayoutDirectionContext';
 import React, { useState } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, I18nManager, Platform, NativeSyntheticEvent, TextInputKeyPressEventData } from 'react-native';
+import { View, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, NativeSyntheticEvent, TextInputKeyPressEventData } from 'react-native';
 import { Send, Mic } from 'lucide-react-native';
 import { Locale } from '../../contexts/LocaleContext';
 import { color } from '../../theme/tokens';
@@ -26,9 +27,6 @@ export function ChatInput({
     isRTL = false,
 }: ChatInputProps) {
     const [text, setText] = useState('');
-
-    // Determine effective layout direction (XOR logic)
-    const isLayoutRTL = isRTL ? !I18nManager.isRTL : I18nManager.isRTL;
 
     // Disable input when loading response or transcribing voice
     const isDisabled = isLoading || isTranscribing;
@@ -72,17 +70,16 @@ export function ChatInput({
         : (locale === 'ar' ? 'اكتب رسالة...' : 'Type a message...');
 
     return (
-        <View style={[styles.container, isDisabled && styles.containerDisabled]}>
+        <DirectionalView languageRTL={isRTL} style={[styles.container, isDisabled && styles.containerDisabled]}>
             <View style={[
                 styles.inputContainer,
                 isDisabled && styles.inputContainerDisabled,
-                isLayoutRTL && styles.inputContainerRTL,
             ]}>
                 <TextInput
                     style={[
                         styles.input,
                         isDisabled && styles.inputDisabled,
-                        isRTL && styles.inputRTL,
+                        alignText(false, isRTL),
                     ]}
                     placeholder={placeholder}
                     placeholderTextColor={isDisabled ? "#C0C4CC" : "#9CA3AF"}
@@ -95,7 +92,7 @@ export function ChatInput({
                     submitBehavior="submit"
                     multiline
                     editable={!isDisabled}
-                    textAlign={isRTL ? 'right' : 'left'}
+                    textAlign="left"
                 />
 
                 {text.length > 0 ? (
@@ -136,7 +133,7 @@ export function ChatInput({
                     </TouchableOpacity>
                 )}
             </View>
-        </View>
+        </DirectionalView>
     );
 }
 
@@ -159,9 +156,6 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         gap: 12,
     },
-    inputContainerRTL: {
-        flexDirection: 'row-reverse',
-    },
     inputContainerDisabled: {
         backgroundColor: '#E5E7EB',
     },
@@ -171,9 +165,6 @@ const styles = StyleSheet.create({
         maxHeight: 100,
         color: '#1F2937',
         paddingVertical: 8,
-    },
-    inputRTL: {
-        writingDirection: 'rtl',
     },
     inputDisabled: {
         color: '#9CA3AF',

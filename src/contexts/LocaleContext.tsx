@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
-import { I18nManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppResetManager } from '../services/AppResetManager';
 
@@ -181,13 +180,6 @@ export function LocaleProvider({
                 if (savedLocale === 'en' || savedLocale === 'ar') {
                     setLocaleState(savedLocale);
                     localeRef.current = savedLocale;
-
-                    // Set RTL if needed (note: requires app restart to take effect)
-                    const shouldBeRTL = savedLocale === 'ar';
-                    if (I18nManager.isRTL !== shouldBeRTL) {
-                        I18nManager.allowRTL(shouldBeRTL);
-                        I18nManager.forceRTL(shouldBeRTL);
-                    }
                 }
             } catch (error) {
                 console.error('Failed to load locale:', error);
@@ -220,14 +212,8 @@ export function LocaleProvider({
             // STEP 2: Save the new locale
             await AsyncStorage.setItem(LOCALE_STORAGE_KEY, newLocale);
 
-            // STEP 3: Set RTL direction
-            const shouldBeRTL = newLocale === 'ar';
-            if (I18nManager.isRTL !== shouldBeRTL) {
-                I18nManager.allowRTL(shouldBeRTL);
-                I18nManager.forceRTL(shouldBeRTL);
-                // Note: Full RTL requires app restart on React Native
-                // We handle visual RTL manually in styles
-            }
+            // Direction is scoped in the SDK; never force a restart or change
+            // the embedding application's global I18nManager preferences.
 
             // STEP 4: Update locale state (this triggers re-renders)
             setLocaleState(newLocale);

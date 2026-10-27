@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, FlatList, Pressable, StyleSheet } from 'react-native';
+import { DirectionalView } from '../../../contexts/LayoutDirectionContext';
+import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { Sparkles } from 'lucide-react-native';
 import { color, composer, radius, text, iconStroke } from '../../../theme/tokens';
 import { Suggestion, EntityCandidate } from '../../../lib/suggestions';
@@ -31,41 +32,31 @@ export function SuggestionChips({
     slotLabel,
     onSuggestion,
     onCandidate,
-    isRTL,
+    isRTL = false,
 }: SuggestionChipsProps) {
     const showCandidates = Boolean(candidates && candidates.length > 0);
     const data: any[] = showCandidates ? candidates! : suggestions || [];
     if (data.length === 0) return null;
 
     return (
-        <View style={styles.wrap}>
+        <DirectionalView languageRTL={isRTL} style={styles.wrap}>
             {showCandidates && slotLabel ? (
                 <Text style={[text('caption'), styles.slotLabel]}>{slotLabel}</Text>
             ) : null}
-            <FlatList
+            <ScrollView
                 horizontal
-                data={data}
-                // Tapping a chip must not dismiss the keyboard mid-sentence.
+                style={{ flex: 1 }}
                 keyboardShouldPersistTaps="always"
                 showsHorizontalScrollIndicator={false}
-                inverted={isRTL}
-                keyExtractor={item => item.id}
                 contentContainerStyle={styles.row}
-                renderItem={({ item }) =>
-                    showCandidates ? (
-                        <CandidateChip
-                            candidate={item as EntityCandidate}
-                            onPress={() => onCandidate?.(item)}
-                        />
-                    ) : (
-                        <SuggestionChip
-                            suggestion={item as Suggestion}
-                            onPress={() => onSuggestion?.(item)}
-                        />
-                    )
-                }
-            />
-        </View>
+            >
+                {data.map(item => showCandidates ? (
+                    <CandidateChip key={item.id} candidate={item as EntityCandidate} onPress={() => onCandidate?.(item)} />
+                ) : (
+                    <SuggestionChip key={item.id} suggestion={item as Suggestion} onPress={() => onSuggestion?.(item)} />
+                ))}
+            </ScrollView>
+        </DirectionalView>
     );
 }
 
@@ -138,7 +129,7 @@ function CandidateChip({
 
 const styles = StyleSheet.create({
     wrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    slotLabel: { paddingLeft: composer.barPadStart },
+    slotLabel: { paddingStart: composer.barPadStart },
     row: { gap: composer.chipGap, paddingHorizontal: composer.barPadStart },
     chip: {
         height: composer.chipHeight,

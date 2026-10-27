@@ -7,7 +7,7 @@ import { color, layout, loan, radius, size, text, iconStroke } from '../../../th
 import { adviseLoan, quoteLoan, rateLabel, tenureLabel } from '../../../lib/loans';
 import { ChatResolution, LoanOfferUI, LoanTerms } from '../../../types';
 import { CURRENCY_WORD, LOAN_WORDS, LoanLocale, compact, money, splitPlain, stamp } from './loanWords';
-import { useLayoutRTL, row, alignText, alignStart, alignEnd } from '../../../contexts/LayoutDirectionContext';
+import { useLayoutRTL, useVisualRTL, row, alignText, alignStart, alignEnd } from '../../../contexts/LayoutDirectionContext';
 
 /**
  * Family B · LoanPlan — a decision the user is about to submit (design §5b, §5c).
@@ -158,13 +158,14 @@ export function LoanPlanBlock({
 
     const hero = splitPlain(quote.monthly);
     const flip = useLayoutRTL();
+    const visualRTL = useVisualRTL();
     const dim = pending ? { opacity: loan.recalculatingOpacity } : null;
     const fees = quote.fee ? money(quote.fee, locale, 2) : words.noFees;
 
     return (
         <Card variant={submitted || !live ? 'info' : 'decision'}>
             <View style={[styles.header, row(flip)]}>
-                <Text style={[text('cardTitle'), alignText(flip)]} numberOfLines={1}>
+                <Text style={[text('cardTitle'), alignText(flip, visualRTL)]} numberOfLines={1}>
                     {name}
                 </Text>
                 {submitted ? (
@@ -234,14 +235,14 @@ export function LoanPlanBlock({
                         <Sparkles size={size.icon.xs} color={color.brand[600]} strokeWidth={iconStroke} />
                     </IconBox>
                     <View style={[styles.advisorText, alignStart(flip)]}>
-                        <Text style={[text('caption', { color: color.brand[600], fontWeight: '600' }), alignText(flip)]}>{words.advisor}</Text>
+                        <Text style={[text('caption', { color: color.brand[600], fontWeight: '600' }), alignText(flip, visualRTL)]}>{words.advisor}</Text>
                         {thinking ? (
                             <View style={[styles.thinking, row(flip)]} accessibilityRole="progressbar" accessibilityLabel={words.thinking}>
                                 <ActivityIndicator size="small" color={color.brand[600]} />
-                                <Text style={[text('rowLabel'), alignText(flip)]}>{words.thinking}</Text>
+                                <Text style={[text('rowLabel'), alignText(flip, visualRTL)]}>{words.thinking}</Text>
                             </View>
                         ) : (
-                            <Text style={[text('rowLabel', { color: color.text.primary }), alignText(flip)]}>{remark}</Text>
+                            <Text style={[text('rowLabel', { color: color.text.primary }), alignText(flip, visualRTL)]}>{remark}</Text>
                         )}
                     </View>
                 </View>
@@ -284,7 +285,7 @@ export function LoanPlanBlock({
                 </View>
             ) : null}
 
-            <Text style={[text('caption'), styles.disclaimer, alignText(flip)]}>{words.disclaimer}</Text>
+            <Text style={[text('caption'), styles.disclaimer, alignText(flip, visualRTL)]}>{words.disclaimer}</Text>
         </Card>
     );
 }

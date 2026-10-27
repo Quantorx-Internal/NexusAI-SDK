@@ -1,3 +1,4 @@
+import { alignText } from '../contexts/LayoutDirectionContext';
 import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import { View, StyleSheet, FlatList, KeyboardAvoidingView, Platform, Text, TouchableOpacity, I18nManager, Modal, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -453,7 +454,7 @@ export function ChatScreen() {
             >
                 <Pressable style={styles.modalBackdrop} onPress={() => setIsVoicePickerOpen(false)}>
                     <Pressable style={styles.voiceSheet}>
-                        <Text style={[styles.voiceSheetTitle, isRTL && styles.textRTL]}>
+                        <Text style={[styles.voiceSheetTitle, alignText(isLayoutRTL, isRTL)]}>
                             {locale === 'ar' ? 'اختر صوت المساعد' : 'Select agent voice'}
                         </Text>
                         {availableVoices.map((voice) => {
@@ -468,10 +469,10 @@ export function ChatScreen() {
                                         <BrainCircuit size={18} color={isSelected ? '#fff' : color.brand[600]} />
                                     </View>
                                     <View style={styles.voiceOptionTextWrap}>
-                                        <Text style={[styles.voiceOptionName, isRTL && styles.textRTL]}>
+                                        <Text style={[styles.voiceOptionName, alignText(isLayoutRTL, isRTL)]}>
                                             {locale === 'ar' ? voice.nameAr : voice.name}
                                         </Text>
-                                        <Text style={[styles.voiceOptionMeta, isRTL && styles.textRTL]}>
+                                        <Text style={[styles.voiceOptionMeta, alignText(isLayoutRTL, isRTL)]}>
                                             {voice.sex === 'female'
                                                 ? (locale === 'ar' ? 'صوت نسائي' : 'Female voice')
                                                 : (locale === 'ar' ? 'صوت رجالي' : 'Male voice')}

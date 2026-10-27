@@ -162,7 +162,7 @@ function CategoryRow({
             <View style={styles.rowTop}>
                 <View style={styles.rowLeft}>
                     <RampKey index={index} />
-                    <Text style={text('rowValue')} numberOfLines={1}>
+                    <Text style={text('rowValue', { flexShrink: 1 })} numberOfLines={1}>
                         {name}
                     </Text>
                 </View>
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: layout.rowGap,
-        paddingLeft: 22,
+        paddingStart: 22,
     },
     rowLeft: { flexDirection: 'row', alignItems: 'center', gap: layout.rowGap, flexShrink: 1 },
     change: { flexDirection: 'row', alignItems: 'center', gap: 4 },

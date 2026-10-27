@@ -1,12 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { color, border, layout, text } from '../../theme/tokens';
-import { useLayoutRTL, row, alignText } from '../../contexts/LayoutDirectionContext';
+import { useLayoutRTL, useVisualRTL, row, alignText } from '../../contexts/LayoutDirectionContext';
 
 /**
- * Detail row — label left, value right, 12 gap, baseline aligned.
+ * Detail row — label at reading start, value at reading end, baseline aligned.
  *
- * The value flex-shrinks and may run to two lines; the label never does.
+ * Both sides may wrap; long translated labels cannot push the value offscreen.
  * `total` promotes the row: a hairline divider above, label at rowValue weight,
  * value at the amount role.
  */
@@ -23,9 +23,10 @@ interface DetailRowProps {
 
 export function DetailRow({ label, value, total, struck, valueColor, children }: DetailRowProps) {
     const flip = useLayoutRTL();
+    const visualRTL = useVisualRTL();
     return (
         <View style={[styles.row, row(flip), total && styles.totalRow]}>
-            <Text style={total ? text('rowValue') : text('rowLabel')} numberOfLines={1}>
+            <Text style={[total ? text('rowValue') : text('rowLabel'), styles.label, alignText(flip, visualRTL)]} numberOfLines={2}>
                 {label}
             </Text>
             {children ?? (
@@ -33,7 +34,7 @@ export function DetailRow({ label, value, total, struck, valueColor, children }:
                     style={[
                         total ? text('amount') : text('rowValue'),
                         styles.value,
-                        flip && { textAlign: 'left' },
+                        { textAlign: flip ? 'left' : 'right', writingDirection: visualRTL ? 'rtl' : 'ltr' },
                         struck && styles.struck,
                         valueColor ? { color: valueColor } : null,
                     ]}
@@ -61,6 +62,7 @@ const styles = StyleSheet.create({
         paddingTop: layout.rowGap,
         marginTop: 4,
     },
+    label: { flexShrink: 1, maxWidth: '48%' },
     value: { flexShrink: 1, textAlign: 'right' },
     struck: { color: color.text.tertiary, textDecorationLine: 'line-through' },
 });
