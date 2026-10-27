@@ -303,6 +303,9 @@ export const welcome = {
     tileMinHeight: 60,
     /** The strip behind the chips and the composer. */
     footerSurface: '#FBFAFC',
+    /** The typed summary (design §8b): 24/36, with the figures as inline tags. */
+    summarySize: 24,
+    summaryLine: 36,
 } as const;
 
 /** Icons are lucide-react-native at strokeWidth 2. */

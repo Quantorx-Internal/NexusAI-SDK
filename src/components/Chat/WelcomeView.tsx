@@ -1,26 +1,24 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, I18nManager } from 'react-native';
-import { Eye, EyeOff, FileText, Wallet, Clock, Receipt, HandCoins, ChevronLeft, ChevronRight } from 'lucide-react-native';
-import { InstrumentSurface } from '../ui';
-import { color, instrument, layout, radius, size, text, iconStroke, welcome } from '../../theme/tokens';
-import { useLayoutRTL, row, alignText, alignStart, alignEnd } from '../../contexts/LayoutDirectionContext';
+import { Sparkles, RotateCcw, FileText, HandCoins, Wallet, Clock, Receipt } from 'lucide-react-native';
+import { color, layout, radius, size, text, iconStroke, Tone, toneSet, welcome } from '../../theme/tokens';
+import { useLayoutRTL, row, alignText, alignStart } from '../../contexts/LayoutDirectionContext';
 import { Locale } from '../../contexts/LocaleContext';
-import { CURRENCY_WORD, plain, splitPlain } from './blocks/loanWords';
+import { CURRENCY_WORD, plain } from './blocks/loanWords';
+import { tenureLabel } from '../../lib/loans';
 
 /**
- * Welcome · instrument hero (design §7b).
+ * Welcome · answer before you ask (design §8b).
  *
- * Four equal tiles became one hero and three secondary figures: the balance
- * is the question most users open with, so it gets the instrument gradient
- * and the hero type; the month's spending and the cards sit inside it as
- * frosted stats. Pending bills become one tappable insight row, amber
- * because it is the one thing that is actually urgent. Colour otherwise
- * means something: brand purple on actions, nothing else.
+ * The assistant types out a short summary when the screen opens: the
+ * balance, the month's spending and what is pending, with the amounts as
+ * coloured tags the user can tap to ask about them. Under it, a stack of
+ * three things it can do right now (pay every bill, a loan it has already
+ * sized, analyse the month); tapping the stack shows the next one. "Replay"
+ * types the summary again. Quick actions are pills; financing is filled.
  *
- * Quick actions are four equal tiles; financing is the fourth, marked with
- * the brand border and a "new" badge for launch. The eye hides every amount
- * on the screen, not only the balance. Digits are one system throughout:
- * Latin, with the currency word after the number, like every card.
+ * Digits stay Latin with the currency word after the number, as on every
+ * card, so one system runs through the whole chat.
  */
 
 export interface WelcomeSummary {
@@ -28,8 +26,12 @@ export interface WelcomeSummary {
     /** How many accounts the balance adds up. */
     accounts?: number;
     monthlySpending: number;
+    /** How many categories the spending card shows. */
+    spendingCategories?: number;
     pendingBills: { count: number; amount: number };
     activeCards: number;
+    /** A loan the app already sized for this customer, for the stack. */
+    loan?: { name: string; nameAr: string; upTo: number; monthly: number; months: number } | null;
 }
 
 interface WelcomeViewProps {
@@ -39,202 +41,344 @@ interface WelcomeViewProps {
     onQuickAction: (action: string) => void;
 }
 
-const WORDS = {
-    ar: {
-        hello: (name: string) => `هلا ${name}`,
-        how: 'كيف أقدر أفيدك؟',
-        total: 'إجمالي الرصيد',
-        accounts: (n: number) => `${n} ${n === 1 ? 'حساب' : n === 2 ? 'حسابين' : n <= 10 ? 'حسابات' : 'حساب'}`,
-        spending: 'مصروفات الشهر',
-        cards: 'البطاقات',
-        active: (n: number) => `${n} نشطة`,
-        pending: (n: number) => `${n} ${n === 1 ? 'فاتورة معلّقة' : n === 2 ? 'فاتورتين معلّقتين' : n <= 10 ? 'فواتير معلّقة' : 'فاتورة معلّقة'}`,
-        totalling: (amount: string) => `بإجمالي ${amount}`,
-        pay: 'ادفع',
-        payMessage: 'أبي أدفع فواتيري',
-        hide: 'إخفاء المبالغ',
-        show: 'إظهار المبالغ',
-        newBadge: 'جديد',
-        actions: [
-            { id: 'spending', label: 'مصاريفي', Icon: Wallet, message: 'أبي أشوف مصاريفي' },
-            { id: 'activity', label: 'آخر حركاتي', Icon: Clock, message: 'وش آخر حركاتي؟' },
-            { id: 'bills', label: 'فواتيري', Icon: Receipt, message: 'أبي أدفع فواتيري' },
-            { id: 'loans', label: 'تمويل', Icon: HandCoins, message: 'أبي تمويل', featured: true },
-        ],
-    },
-    en: {
-        hello: (name: string) => `Hello, ${name}`,
-        how: 'How can I help?',
-        total: 'Total balance',
-        accounts: (n: number) => `${n} ${n === 1 ? 'account' : 'accounts'}`,
-        spending: 'Monthly spending',
-        cards: 'Cards',
-        active: (n: number) => `${n} active`,
-        pending: (n: number) => `${n} pending ${n === 1 ? 'bill' : 'bills'}`,
-        totalling: (amount: string) => `totalling ${amount}`,
-        pay: 'Pay',
-        payMessage: 'Show me my bills',
-        hide: 'Hide amounts',
-        show: 'Show amounts',
-        newBadge: 'New',
-        actions: [
-            { id: 'spending', label: 'My spending', Icon: Wallet, message: 'Show me my spending' },
-            { id: 'activity', label: 'Recent activity', Icon: Clock, message: 'Show my recent transactions' },
-            { id: 'bills', label: 'My bills', Icon: Receipt, message: 'Show me my bills' },
-            { id: 'loans', label: 'Financing', Icon: HandCoins, message: 'I want financing', featured: true },
-        ],
-    },
+/** One piece of the typed summary: plain words, or a tag that asks about a figure. */
+type Segment =
+    | { kind: 'text'; text: string }
+    | { kind: 'tag'; text: string; tone: Tone; message: string };
+
+interface Suggestion {
+    id: string;
+    Icon: typeof FileText;
+    tone: Tone;
+    title: string;
+    subtitle: string;
+    cta: string;
+    message: string;
+}
+
+/** Characters per second while the summary types. Fast enough to read along, slow enough to feel typed. */
+const TYPING_CPS = 28;
+const TYPING_START_MS = 350;
+
+const arCount = (n: number, one: string, two: string, few: string, many: string) =>
+    n === 1 ? one : n === 2 ? two : n <= 10 ? `${n} ${few}` : `${n} ${many}`;
+
+function buildSegments(summary: WelcomeSummary, locale: Locale): Segment[] {
+    const isAr = locale === 'ar';
+    const currency = CURRENCY_WORD[locale];
+    const name = isAr ? 'محمد' : 'Mohammed';
+    const balance = `${plain(summary.totalBalance, 2)} ${currency}`;
+    const spending = `${plain(summary.monthlySpending)} ${currency}`;
+    const bills = summary.pendingBills;
+    const billsAmount = `${plain(bills.amount)} ${currency}`;
+
+    if (isAr) {
+        const segments: Segment[] = [
+            { kind: 'text', text: `هلا ${name}. رصيدك ` },
+            { kind: 'tag', text: balance, tone: 'brandTint', message: 'اعرض رصيدي' },
+            { kind: 'text', text: '، وصرفت ' },
+            { kind: 'tag', text: spending, tone: 'neutralTint', message: 'اعرض مصاريفي' },
+            { kind: 'text', text: ' هالشهر.' },
+        ];
+        if (bills.count > 0) {
+            segments.push(
+                { kind: 'text', text: ' عندك ' },
+                { kind: 'tag', text: arCount(bills.count, 'فاتورة', 'فاتورتين', 'فواتير', 'فاتورة'), tone: 'warning', message: 'اعرض فواتيري' },
+                { kind: 'text', text: ` معلّقة بـ ${billsAmount}، وأقدر أدفعها كلها الآن.` }
+            );
+        } else {
+            segments.push({ kind: 'text', text: ' ما عندك فواتير معلّقة.' });
+        }
+        return segments;
+    }
+
+    const segments: Segment[] = [
+        { kind: 'text', text: `Hello ${name}. Your balance is ` },
+        { kind: 'tag', text: balance, tone: 'brandTint', message: 'Show my balance' },
+        { kind: 'text', text: ', and you spent ' },
+        { kind: 'tag', text: spending, tone: 'neutralTint', message: 'Show me my spending' },
+        { kind: 'text', text: ' this month.' },
+    ];
+    if (bills.count > 0) {
+        segments.push(
+            { kind: 'text', text: ' You have ' },
+            { kind: 'tag', text: `${bills.count} ${bills.count === 1 ? 'bill' : 'bills'}`, tone: 'warning', message: 'Show me my bills' },
+            { kind: 'text', text: ` pending, ${billsAmount} in all, and I can pay them now.` }
+        );
+    } else {
+        segments.push({ kind: 'text', text: ' Nothing is pending.' });
+    }
+    return segments;
+}
+
+function buildSuggestions(summary: WelcomeSummary, locale: Locale): Suggestion[] {
+    const isAr = locale === 'ar';
+    const currency = CURRENCY_WORD[locale];
+    const out: Suggestion[] = [];
+    const bills = summary.pendingBills;
+
+    if (bills.count > 0) {
+        out.push({
+            id: 'bills',
+            Icon: FileText,
+            tone: 'warning',
+            title: isAr ? `ادفع ${arCount(bills.count, 'فاتورة', 'فاتورتين', 'فواتير', 'فاتورة')} بضغطة وحدة` : `Pay ${bills.count} bills in one tap`,
+            subtitle: isAr
+                ? `إجمالي ${plain(bills.amount, 2)} ${currency} من الحساب الرئيسي`
+                : `${plain(bills.amount, 2)} ${currency} in all, from the Main Account`,
+            cta: isAr ? 'ادفعها كلها' : 'Pay them all',
+            message: isAr ? 'ادفع كل فواتيري المعلّقة' : 'Pay all my pending bills',
+        });
+    }
+    if (summary.loan) {
+        const { loan } = summary;
+        const name = isAr ? loan.nameAr : loan.name;
+        out.push({
+            id: 'loan',
+            Icon: HandCoins,
+            tone: 'brandTint',
+            title: isAr ? `${name} جاهز لك` : `A ${name} sized for you`,
+            subtitle: isAr
+                ? `حتى ${plain(loan.upTo)} ${currency} · القسط من ${plain(Math.round(loan.monthly))} ${currency} على ${tenureLabel(loan.months, 'ar')}`
+                : `Up to ${plain(loan.upTo)} ${currency} · from ${plain(Math.round(loan.monthly))} ${currency} a month over ${tenureLabel(loan.months, 'en')}`,
+            cta: isAr ? 'شوف التفاصيل' : 'See the details',
+            message: isAr ? `أبي أشوف ${name}` : `Show me the ${name}`,
+        });
+    }
+    out.push({
+        id: 'spending',
+        Icon: Wallet,
+        tone: 'brandTint',
+        title: isAr ? 'حلّل مصاريف الشهر' : "Analyse this month's spending",
+        subtitle: isAr
+            ? `${plain(summary.monthlySpending)} ${currency}${summary.spendingCategories ? ` في ${arCount(summary.spendingCategories, 'فئة', 'فئتين', 'فئات', 'فئة')}` : ''}`
+            : `${plain(summary.monthlySpending)} ${currency}${summary.spendingCategories ? ` across ${summary.spendingCategories} categories` : ''}`,
+        cta: isAr ? 'حلّلها' : 'Analyse it',
+        message: isAr ? 'حلّل مصاريفي هالشهر' : 'Analyse my spending this month',
+    });
+    return out;
+}
+
+const QUICK = {
+    ar: [
+        { id: 'spending', label: 'مصاريفي', Icon: Wallet, message: 'أبي أشوف مصاريفي' },
+        { id: 'activity', label: 'حركاتي', Icon: Clock, message: 'وش آخر حركاتي؟' },
+        { id: 'bills', label: 'فواتيري', Icon: Receipt, message: 'أبي أدفع فواتيري' },
+        { id: 'loans', label: 'تمويل', Icon: HandCoins, message: 'أبي تمويل', filled: true },
+    ],
+    en: [
+        { id: 'spending', label: 'My spending', Icon: Wallet, message: 'Show me my spending' },
+        { id: 'activity', label: 'Activity', Icon: Clock, message: 'Show my recent transactions' },
+        { id: 'bills', label: 'My bills', Icon: Receipt, message: 'Show me my bills' },
+        { id: 'loans', label: 'Financing', Icon: HandCoins, message: 'I want financing', filled: true },
+    ],
 } as const;
 
-const MASK = '••••';
+const WORDS = {
+    ar: { summaryTitle: 'ملخصك قبل ما تسأل', replay: 'أعد', canDo: 'أقدر أسويها لك الآن', next: 'التالي', of: (i: number, n: number) => `${i} / ${n}` },
+    en: { summaryTitle: 'Your summary, before you ask', replay: 'Replay', canDo: 'I can do these for you now', next: 'Next', of: (i: number, n: number) => `${i} / ${n}` },
+} as const;
 
 export function WelcomeView({ summary, locale, isRTL = false, onQuickAction }: WelcomeViewProps) {
-    const isAr = locale === 'ar';
     const words = WORDS[locale];
     const flip = useLayoutRTL();
-    const visualRTL = flip ? !I18nManager.isRTL : I18nManager.isRTL;
-    const [hidden, setHidden] = useState(false);
-    const [heroWidth, setHeroWidth] = useState(0);
+    const segments = useMemo(() => (summary ? buildSegments(summary, locale) : []), [summary, locale]);
+    const suggestions = useMemo(() => (summary ? buildSuggestions(summary, locale) : []), [summary, locale]);
+    const total = useMemo(() => segments.reduce((n, s) => n + s.text.length, 0), [segments]);
 
-    const clientName = isAr ? 'محمد' : 'Mohammed';
-    const currency = CURRENCY_WORD[locale];
-    const balance = splitPlain(summary?.totalBalance ?? 0);
-    const amount = (value: number) => (hidden ? MASK : `${plain(value, 2)} ${currency}`);
-    const EyeIcon = hidden ? EyeOff : Eye;
-    const PayChevron = visualRTL ? ChevronLeft : ChevronRight;
+    // Typing: one counter over every character; a tag appears whole once reached.
+    const [typed, setTyped] = useState(0);
+    const [run, setRun] = useState(0);
+    const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+    useEffect(() => {
+        setTyped(0);
+        const start = setTimeout(() => {
+            timer.current = setInterval(() => {
+                setTyped(n => {
+                    if (n + 1 >= total && timer.current) {
+                        clearInterval(timer.current);
+                        timer.current = null;
+                    }
+                    return Math.min(total, n + 1);
+                });
+            }, 1000 / TYPING_CPS);
+        }, TYPING_START_MS);
+        return () => {
+            clearTimeout(start);
+            if (timer.current) clearInterval(timer.current);
+            timer.current = null;
+        };
+    }, [total, run]);
+    const replay = useCallback(() => setRun(r => r + 1), []);
+    const done = typed >= total;
+
+    const [index, setIndex] = useState(0);
+    const current = suggestions[index % Math.max(suggestions.length, 1)];
+    const next = useCallback(() => setIndex(i => (i + 1) % Math.max(suggestions.length, 1)), [suggestions.length]);
 
     return (
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-            {/* Greeting: name and question on one line. */}
-            <View style={[styles.greeting, row(flip)]}>
-                <Text style={[text('amount', { fontSize: 26, lineHeight: 32 }), alignText(flip)]} numberOfLines={1}>
-                    {words.hello(clientName)}
-                </Text>
-                <Text style={[text('body', { color: color.text.secondary }), alignText(flip)]} numberOfLines={1}>
-                    {words.how}
-                </Text>
+            {/* Title row: what this is, and replay. */}
+            <View style={[styles.titleRow, row(flip)]}>
+                <View style={[styles.title, row(flip)]}>
+                    <Sparkles size={size.icon.sm} color={color.brand[600]} strokeWidth={iconStroke} />
+                    <Text style={text('rowLabel', { fontWeight: '600', color: color.brand[600] })}>{words.summaryTitle}</Text>
+                </View>
+                <Pressable
+                    onPress={replay}
+                    disabled={!done}
+                    accessibilityRole="button"
+                    accessibilityLabel={words.replay}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={({ pressed }) => [styles.replay, row(flip), (pressed || !done) && { opacity: 0.5 }]}
+                >
+                    <RotateCcw size={size.icon.xs} color={color.text.tertiary} strokeWidth={iconStroke} />
+                    <Text style={text('caption')}>{words.replay}</Text>
+                </Pressable>
             </View>
 
-            {/* Hero: the balance, on the instrument gradient. */}
+            {/* The summary, typed. Words are laid out as tokens so the tags can sit inline. */}
             {summary ? (
-                <View onLayout={e => setHeroWidth(e.nativeEvent.layout.width)}>
-                    {heroWidth > 0 ? (
-                        <InstrumentSurface palette="brand" width={heroWidth} height={welcome.heroHeight} mirrored={visualRTL}>
-                            <View style={styles.heroInner}>
-                                <View style={[styles.heroTop, row(flip)]}>
-                                    <Text style={[text('caption', { color: instrument.onSurface }), alignText(flip)]} numberOfLines={1}>
-                                        {words.total}
-                                        {summary.accounts ? ` · ${words.accounts(summary.accounts)}` : ''}
-                                    </Text>
-                                    <Pressable
-                                        onPress={() => setHidden(h => !h)}
-                                        accessibilityRole="button"
-                                        accessibilityLabel={hidden ? words.show : words.hide}
-                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                        style={({ pressed }) => [styles.eye, pressed && { opacity: 0.7 }]}
-                                    >
-                                        <EyeIcon size={size.icon.md} color={instrument.onSurfaceStrong} strokeWidth={iconStroke} />
-                                    </Pressable>
-                                </View>
+                <TypedSummary segments={segments} typed={typed} flip={flip} onTag={onQuickAction} />
+            ) : null}
 
-                                <View style={[styles.heroAmount, alignStart(flip)]}>
-                                    <Text numberOfLines={1} adjustsFontSizeToFit style={alignText(flip)}>
-                                        <Text style={[styles.heroHead, styles.tabular]}>{hidden ? MASK : balance.head}</Text>
-                                        {!hidden ? (
-                                            <Text style={[styles.heroDecimals, styles.tabular]}>{balance.decimals}</Text>
-                                        ) : null}
-                                        <Text style={text('caption', { color: instrument.onSurface })}>{` ${currency}`}</Text>
-                                    </Text>
+            {/* The stack: three things the assistant can do now. */}
+            {suggestions.length > 0 && current ? (
+                <View style={styles.stackSection}>
+                    <View style={[styles.stackHeader, row(flip)]}>
+                        <Text style={text('caption')}>{words.canDo}</Text>
+                        <Text style={[text('caption'), styles.tabular]}>{words.of(index + 1, suggestions.length)}</Text>
+                    </View>
+                    <View style={styles.stack}>
+                        {suggestions.length > 2 ? <View style={[styles.stackGhost, styles.stackGhostFar]} /> : null}
+                        {suggestions.length > 1 ? <View style={[styles.stackGhost, styles.stackGhostNear]} /> : null}
+                        <Pressable
+                            onPress={next}
+                            accessibilityRole="button"
+                            style={[styles.card, { borderColor: toneSet(current.tone).border }]}
+                        >
+                            <View style={[styles.cardHeader, row(flip)]}>
+                                <View style={[styles.cardIcon, { backgroundColor: toneSet(current.tone).bg }]}>
+                                    <current.Icon size={size.icon.lg} color={toneSet(current.tone).fg} strokeWidth={iconStroke} />
                                 </View>
-
-                                <View style={[styles.stats, row(flip)]}>
-                                    <Stat label={words.spending} value={amount(summary.monthlySpending)} flip={flip} />
-                                    <Stat label={words.cards} value={words.active(summary.activeCards)} flip={flip} />
+                                <View style={[styles.cardText, alignStart(flip)]}>
+                                    <Text style={[text('cardTitle'), alignText(flip)]} numberOfLines={2}>
+                                        {current.title}
+                                    </Text>
+                                    <Text style={[text('rowLabel'), styles.tabular, alignText(flip)]} numberOfLines={2}>
+                                        {current.subtitle}
+                                    </Text>
                                 </View>
                             </View>
-                        </InstrumentSurface>
-                    ) : (
-                        <View style={{ height: welcome.heroHeight }} />
-                    )}
+                            <View style={[styles.cardActions, row(flip)]}>
+                                <Pressable
+                                    onPress={() => onQuickAction(current.message)}
+                                    accessibilityRole="button"
+                                    style={({ pressed }) => [styles.cta, { backgroundColor: pressed ? color.brand[700] : color.brand[600] }]}
+                                >
+                                    <Text style={text('button', { color: color.text.inverse })}>{current.cta}</Text>
+                                </Pressable>
+                                {suggestions.length > 1 ? (
+                                    <Pressable onPress={next} accessibilityRole="button" style={styles.nextButton}>
+                                        <Text style={text('button', { color: color.text.secondary })}>{words.next}</Text>
+                                    </Pressable>
+                                ) : null}
+                            </View>
+                        </Pressable>
+                    </View>
                 </View>
             ) : null}
 
-            {/* Pending bills: the one urgent thing, as a tappable insight row. */}
-            {summary && summary.pendingBills.count > 0 ? (
-                <Pressable
-                    onPress={() => onQuickAction(words.payMessage)}
-                    accessibilityRole="button"
-                    style={({ pressed }) => [styles.summaryRow, row(flip), pressed && { backgroundColor: color.warning.border }]}
-                >
-                    <View style={styles.summaryIcon}>
-                        <FileText size={size.icon.md} color={color.warning.fg} strokeWidth={iconStroke} />
-                    </View>
-                    <View style={[styles.summaryText, alignStart(flip)]}>
-                        <Text style={[text('rowValue'), alignText(flip)]} numberOfLines={1}>
-                            {words.pending(summary.pendingBills.count)}
-                        </Text>
-                        <Text style={[text('caption', { color: color.text.secondary }), styles.tabular, alignText(flip)]} numberOfLines={1}>
-                            {words.totalling(amount(summary.pendingBills.amount))}
-                        </Text>
-                    </View>
-                    <View style={[styles.summaryCta, row(flip)]}>
-                        <Text style={text('rowValue', { color: color.warning.fgStrong })}>{words.pay}</Text>
-                        <PayChevron size={size.icon.sm} color={color.warning.fgStrong} strokeWidth={iconStroke} />
-                    </View>
-                </Pressable>
-            ) : null}
-
-            {/* Quick actions: four equal tiles; financing is marked for launch. */}
-            <View style={styles.grid}>
-                {[0, 1].map(rowIndex => (
-                    <View key={rowIndex} style={[styles.gridRow, row(flip)]}>
-                        {words.actions.slice(rowIndex * 2, rowIndex * 2 + 2).map(action => {
-                            const featured = 'featured' in action && action.featured;
-                            const { Icon } = action;
-                            return (
-                                <Pressable
-                                    key={action.id}
-                                    onPress={() => onQuickAction(action.message)}
-                                    accessibilityRole="button"
-                                    style={({ pressed }) => [
-                                        styles.tile,
-                                        row(flip),
-                                        featured && styles.tileFeatured,
-                                        featured && { borderColor: color.borderBrand, backgroundColor: color.brand[50] },
-                                        pressed && { backgroundColor: featured ? color.brand[100] : color.surface2 },
-                                    ]}
-                                >
-                                    <View style={[styles.tileIcon, { backgroundColor: featured ? color.brand[100] : color.brandTint.bg }]}>
-                                        <Icon size={size.icon.md} color={color.brand[600]} strokeWidth={iconStroke} />
-                                    </View>
-                                    <Text style={[text('rowLabel', { fontWeight: '600', color: color.text.primary }), styles.tileLabel, alignText(flip)]} numberOfLines={2}>
-                                        {action.label}
-                                    </Text>
-                                    {featured ? (
-                                        <View style={[styles.badge, { backgroundColor: color.brand[600] }]}>
-                                            <Text style={text('badge', { color: color.text.inverse })}>{words.newBadge}</Text>
-                                        </View>
-                                    ) : null}
-                                </Pressable>
-                            );
-                        })}
-                    </View>
-                ))}
-            </View>
+            {/* Quick actions: pills, financing filled. */}
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={[styles.pills, row(flip)]}
+                keyboardShouldPersistTaps="handled"
+            >
+                {QUICK[locale].map(action => {
+                    const filled = 'filled' in action && action.filled;
+                    const { Icon } = action;
+                    return (
+                        <Pressable
+                            key={action.id}
+                            onPress={() => onQuickAction(action.message)}
+                            accessibilityRole="button"
+                            style={({ pressed }) => [
+                                styles.pill,
+                                row(flip),
+                                filled
+                                    ? { backgroundColor: pressed ? color.brand[700] : color.brand[600], borderColor: 'transparent' }
+                                    : pressed && { backgroundColor: color.surface2 },
+                            ]}
+                        >
+                            <Icon size={size.icon.sm} color={filled ? color.text.inverse : color.brand[600]} strokeWidth={iconStroke} />
+                            <Text style={text('button', { color: filled ? color.text.inverse : color.text.primary })}>{action.label}</Text>
+                        </Pressable>
+                    );
+                })}
+            </ScrollView>
         </ScrollView>
     );
 }
 
-/** A frosted stat inside the hero. */
-function Stat({ label, value, flip }: { label: string; value: string; flip: boolean }) {
+/**
+ * The summary as a wrapping row of word tokens, so the tags render as real
+ * pressable pills between words. Typing reveals characters left to right
+ * through the segments; a tag shows whole as soon as its first character is
+ * reached, so it never appears half-written.
+ */
+function TypedSummary({
+    segments,
+    typed,
+    flip,
+    onTag,
+}: {
+    segments: Segment[];
+    typed: number;
+    flip: boolean;
+    onTag: (message: string) => void;
+}) {
+    const tokens: React.ReactNode[] = [];
+    let offset = 0;
+    segments.forEach((segment, si) => {
+        const start = offset;
+        offset += segment.text.length;
+        if (typed <= start) return;
+        if (segment.kind === 'tag') {
+            const set = toneSet(segment.tone);
+            tokens.push(
+                <Pressable
+                    key={`t${si}`}
+                    onPress={() => onTag(segment.message)}
+                    accessibilityRole="button"
+                    style={({ pressed }) => [
+                        styles.tag,
+                        { backgroundColor: set.bg, borderColor: set.border },
+                        pressed && { opacity: 0.7 },
+                    ]}
+                >
+                    <Text style={[styles.tagText, styles.tabular, { color: set.fg }]}>{segment.text}</Text>
+                </Pressable>
+            );
+            return;
+        }
+        const visible = segment.text.slice(0, Math.max(0, typed - start));
+        // Keep punctuation glued to its word; split only on spaces.
+        visible.split(' ').forEach((word, wi, all) => {
+            if (!word) return;
+            tokens.push(
+                <Text key={`w${si}-${wi}`} style={styles.word}>
+                    {word}
+                </Text>
+            );
+            void all;
+        });
+    });
+
     return (
-        <View style={[styles.stat, alignStart(flip)]}>
-            <Text style={[text('caption', { color: instrument.onSurface }), alignText(flip)]} numberOfLines={1}>
-                {label}
-            </Text>
-            <Text style={[styles.statValue, styles.tabular, alignText(flip)]} numberOfLines={1} adjustsFontSizeToFit>
-                {value}
-            </Text>
+        <View style={[styles.summary, row(flip), flip ? { justifyContent: 'flex-start' } : null]} accessibilityRole="text">
+            {tokens}
         </View>
     );
 }
@@ -245,95 +389,93 @@ const styles = StyleSheet.create({
         gap: welcome.sectionGap,
         paddingBottom: 24,
     },
-    greeting: { alignItems: 'baseline', gap: 8, flexWrap: 'wrap' },
-    heroInner: { flex: 1, justifyContent: 'space-between' },
-    heroTop: { alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-    eye: {
-        width: size.iconBox.sm,
-        height: size.iconBox.sm,
-        borderRadius: size.iconBox.sm / 2,
-        backgroundColor: instrument.frostFill,
+    titleRow: { alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+    title: { alignItems: 'center', gap: 6 },
+    replay: { alignItems: 'center', gap: 4 },
+    summary: {
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        columnGap: 6,
+        rowGap: 8,
+        minHeight: welcome.summaryLine * 3,
+    },
+    word: {
+        fontSize: welcome.summarySize,
+        lineHeight: welcome.summaryLine,
+        fontWeight: '500',
+        color: color.text.primary,
+    },
+    tag: {
+        height: welcome.summaryLine - 6,
+        paddingHorizontal: 10,
+        borderRadius: radius.pill,
+        borderWidth: 1,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    heroAmount: { marginTop: 4 },
-    heroHead: {
-        fontSize: welcome.heroSize,
-        lineHeight: welcome.heroLine,
-        fontWeight: '700',
-        color: instrument.onSurfaceStrong,
-    },
-    heroDecimals: {
-        fontSize: welcome.heroDecimals,
-        lineHeight: welcome.heroLine,
+    tagText: {
+        fontSize: welcome.summarySize - 4,
+        lineHeight: welcome.summaryLine - 8,
         fontWeight: '600',
-        color: instrument.onSurface,
     },
     tabular: { fontVariant: ['tabular-nums'] },
-    stats: { gap: 10 },
-    stat: {
-        flex: 1,
-        gap: 2,
-        padding: layout.rowGap,
-        borderRadius: welcome.summaryRadius,
-        backgroundColor: instrument.frostFill,
-        borderWidth: 1,
-        borderColor: instrument.frostBorder,
-    },
-    statValue: {
-        fontSize: welcome.statSize,
-        lineHeight: 22,
-        fontWeight: '700',
-        color: instrument.onSurfaceStrong,
-    },
-    summaryRow: {
-        alignItems: 'center',
-        gap: layout.rowGap,
-        padding: layout.rowGap,
-        borderRadius: welcome.summaryRadius,
-        backgroundColor: color.warning.bg,
-        borderWidth: 1,
-        borderColor: color.warning.border,
-    },
-    summaryIcon: {
-        width: size.iconBox.lg,
-        height: size.iconBox.lg,
-        borderRadius: size.iconBox.lg / 2,
-        backgroundColor: color.surface,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    summaryText: { flex: 1, gap: 2 },
-    summaryCta: { alignItems: 'center', gap: 2 },
-    grid: { gap: layout.rowGap },
-    gridRow: { gap: layout.rowGap },
-    tile: {
-        flex: 1,
-        minHeight: welcome.tileMinHeight,
-        alignItems: 'center',
-        gap: layout.rowGap,
-        paddingHorizontal: layout.rowGap,
-        paddingVertical: layout.rowGap,
-        borderRadius: welcome.tileRadius,
+    stackSection: { gap: 8 },
+    stackHeader: { alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
+    stack: { paddingBottom: 12 },
+    stackGhost: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: 40,
+        borderRadius: radius.card,
         borderWidth: 1,
         borderColor: color.border,
         backgroundColor: color.surface,
     },
-    tileFeatured: { borderWidth: 1.5 },
-    tileIcon: {
-        width: welcome.iconSquare,
-        height: welcome.iconSquare,
-        borderRadius: welcome.tileRadius,
+    stackGhostNear: { left: 8, right: 8, bottom: 6 },
+    stackGhostFar: { left: 16, right: 16, bottom: 0, opacity: 0.6 },
+    card: {
+        backgroundColor: color.surface,
+        borderRadius: radius.card,
+        borderWidth: 1,
+        padding: layout.cardPadding,
+        gap: layout.sectionGap,
+    },
+    cardHeader: { alignItems: 'flex-start', gap: layout.rowGap },
+    cardIcon: {
+        width: size.iconBox.lg + 8,
+        height: size.iconBox.lg + 8,
+        borderRadius: radius.inner,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    tileLabel: { flex: 1 },
-    badge: {
-        paddingHorizontal: 6,
-        height: size.pill,
-        borderRadius: radius.pill,
+    cardText: { flex: 1, gap: 2 },
+    cardActions: { alignItems: 'center', gap: 8 },
+    cta: {
+        flex: 1,
+        height: size.buttonPrimary,
+        borderRadius: radius.button,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    nextButton: {
+        height: size.buttonPrimary,
+        paddingHorizontal: 14,
+        borderRadius: radius.button,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    pills: { gap: 8, paddingVertical: 2 },
+    pill: {
+        height: size.buttonPrimary + 4,
+        paddingHorizontal: 16,
+        borderRadius: radius.pill,
+        borderWidth: 1,
+        borderColor: color.border,
+        backgroundColor: color.surface,
+        alignItems: 'center',
+        gap: 8,
     },
 });
 

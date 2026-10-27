@@ -15,6 +15,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { assistantName } from '../theme/theme';
 import { preferences as pref } from '../theme/tokens';
 import { PreferencesScreen } from './PreferencesScreen';
+import { demoLoanOptions } from '../lib/loanOptions';
 import { computeSuggestions } from '../lib/suggestions';
 import { mockAccounts } from '../data/accounts';
 import { mockBeneficiaries } from '../data/beneficiaries';
@@ -76,12 +77,27 @@ export function ChatScreen() {
         const pendingBillsAmount = pendingBills.reduce((sum, b) => sum + b.amount, 0);
         const activeCards = mockCards.filter(c => c.status === 'active').length;
 
+        // The loan the app would lead with for this customer, already sized to their month.
+        const options = demoLoanOptions();
+        const featured = options.available.find(o => o.product.id === options.featured);
+        const loan = featured?.reach
+            ? {
+                name: featured.product.name,
+                nameAr: featured.product.nameAr || featured.product.name,
+                upTo: featured.reach.amount,
+                monthly: featured.reach.monthly,
+                months: featured.reach.months,
+            }
+            : null;
+
         return {
             totalBalance,
             accounts: mockAccounts.length,
             monthlySpending,
+            spendingCategories: mockSpendingBreakdown.length,
             pendingBills: { count: pendingBills.length, amount: pendingBillsAmount },
             activeCards,
+            loan,
         };
     }, []);
 
@@ -283,8 +299,8 @@ export function ChatScreen() {
                 cards: mockCards,
                 locale,
                 exclude: messages.filter(m => m.role === 'user').map(m => m.content),
-                // The welcome screen shows bills in its own row, so the chip slot promotes loans.
-                promote: messages.length === 0 ? 'loans' : undefined,
+                // The welcome screen keeps the overdue bill as the lead and adds one insight question.
+                promote: messages.length === 0 ? 'insight' : undefined,
             }),
         [messages, locale]
     );
