@@ -182,3 +182,9 @@ Speech uses the backend's `/api/tts/stream` endpoint for both languages, with th
 `SpeechSynthesisBatch.jobs` is now an async iterable. Consumers must use `for await (const chunk of batch.jobs)`. The bundled hooks are updated. The legacy `engine` and `speakerSex` options no longer override a voice's server preset.
 
 Regression checks require Bun: `bun test tests`. Also run `npx tsc --noEmit` and `npm run build`. Native device playback still needs a listening check with the same voice selected on mobile and web.
+
+### Server-owned chat speech
+
+The backend returns a `speech` reference with each chat reply. Automatic playback and replay pass that reference to `/api/tts/reply?stream=1`, plus the voice preference. They do not send the message text, client card data, or UI locale again. Deploy the backend reference support before this SDK update. Replies without a server reference cannot use chat playback; standalone greeting and voice previews still use the text preview API.
+
+The backend LLM selects English, Arabic, or mixed narration. Mixed text uses the Arabic-capable voice and preserves English passages. The SDK no longer counts characters to guess a language. Recording transcription uses automatic language recognition so an English UI does not suppress Arabic in mixed speech. SDK callers can still pass an explicit transcription language when needed.

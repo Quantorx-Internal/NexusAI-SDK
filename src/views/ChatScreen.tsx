@@ -164,6 +164,7 @@ export function ChatScreen() {
         // Only speak if it's a new assistant message
         if (
             lastMessage.role === 'assistant' &&
+            lastMessage.speech &&
             lastMessage.id !== lastMessageIdRef.current
         ) {
             lastMessageIdRef.current = lastMessage.id;
@@ -177,7 +178,7 @@ export function ChatScreen() {
             // Small delay to ensure the message is rendered
             speechTimeoutRef.current = setTimeout(() => {
                 speechTimeoutRef.current = null;
-                speak(lastMessage.content, lastMessage.id);
+                speak('', lastMessage.id, { speech: lastMessage.speech });
             }, 500);
         }
     }, [messages, autoSpeak, speak, stop, cancelPendingSpeech]);
@@ -204,7 +205,8 @@ export function ChatScreen() {
                 lastMessageIdRef.current = latestMessage.id;
             }
             setAutoSpeak(true);
-            speak(text, messageId);
+            const reply = messages.find(message => message.id === messageId);
+            if (reply?.speech) speak('', messageId, { speech: reply.speech });
         }
     }, [currentMessageId, isSpeaking, isLoadingSpeech, messages, stopAllSpeech, speak]);
 

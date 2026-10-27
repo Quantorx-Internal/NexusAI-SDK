@@ -1,3 +1,4 @@
+import type { SpeechReference } from '../../../src/types';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     AudioPlayer,
@@ -13,6 +14,7 @@ interface UseSpeechOptions {
 }
 
 interface SpeakOptions {
+    speech?: SpeechReference;
     agentVoiceId?: AgentVoiceId;
 }
 
@@ -23,12 +25,6 @@ interface UseSpeechReturn {
     isSpeaking: boolean;
     isLoading: boolean;
     currentMessageId: string | null;
-}
-
-function isArabicText(text: string): boolean {
-    const arabicChars = text.match(/[\u0600-\u06FF\u0750-\u077F]/g) || [];
-    const latinChars = text.match(/[a-zA-Z]/g) || [];
-    return arabicChars.length > latinChars.length;
 }
 
 export function useSpeech(options: UseSpeechOptions = {}): UseSpeechReturn {
@@ -140,7 +136,7 @@ export function useSpeech(options: UseSpeechOptions = {}): UseSpeechReturn {
     }, []);
 
     const speak = useCallback(async (text: string, messageId: string, speakOptions: SpeakOptions = {}) => {
-        if (!text.trim()) return;
+        if (!speakOptions.speech && !text.trim()) return;
 
         stop();
         const runId = runIdRef.current;
@@ -150,8 +146,9 @@ export function useSpeech(options: UseSpeechOptions = {}): UseSpeechReturn {
         setCurrentMessageId(messageId);
 
         try {
-            const detectedLanguage = isArabicText(text) ? 'ar' : 'en';
-            const batch = await VoiceService.createSpeechBatch(text, detectedLanguage, {
+            const languageHint = languageRef.current;
+            const batch = await VoiceService.createSpeechBatch(text, languageHint, {
+                speech: speakOptions.speech,
                 agentVoiceId: speakOptions.agentVoiceId ?? agentVoiceIdRef.current,
                 signal: controller.signal,
             });

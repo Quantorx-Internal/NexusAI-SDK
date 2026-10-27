@@ -89,7 +89,13 @@ export interface ChatMessageUI {
     actions?: UiAction[] | null;
 }
 
+export interface SpeechReference {
+    sessionId: string;
+    messageId: string;
+}
+
 export interface ChatMessage {
+    speech?: SpeechReference;
     id: string;
     role: 'user' | 'assistant';
     content: string;

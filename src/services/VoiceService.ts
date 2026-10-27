@@ -1,3 +1,4 @@
+import type { SpeechReference } from '../types';
 import * as FileSystem from 'expo-file-system/legacy';
 import { ENV } from '../config/constants';
 import type { SpeechSpeakerSex, TtsEngine } from './SpeechTextService';
@@ -6,6 +7,8 @@ import { readSpeechStream } from './speechStream';
 import { AgentVoiceId } from '../config/agentVoices';
 
 export interface TextToSpeechOptions {
+    /** Server-owned chat reply. When present, client text and locale are not sent. */
+    speech?: SpeechReference;
     /** @deprecated The server voice preset controls synthesis settings. */
     engine?: TtsEngine;
     /** @deprecated The server derives speaker gender from the selected voice. */
@@ -38,14 +41,15 @@ export class VoiceService {
     }
 
     static async createSpeechBatch(text: string, locale = 'en', options: TextToSpeechOptions = {}): Promise<SpeechSynthesisBatch> {
-        if (!text.trim()) throw new Error('No speakable text was provided');
+        if (!options.speech && !text.trim()) throw new Error('No speakable text was provided');
         const root = ENV.API_CALLBACK_URL?.replace(/\/+$/, '').replace(/\/api$/i, '');
         if (!root) throw new Error('Configure API_CALLBACK_URL for speech');
         // The server owns the voice reference, speed, rewrite and loudness settings,
         // exactly as it does for web playback. Never synthesize a generic substitute.
-        const response = await streamFetch(`${root}/api/tts/stream`, {
+        const endpoint = options.speech ? '/api/tts/reply?stream=1' : '/api/tts/stream';
+        const response = await streamFetch(`${root}${endpoint}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, language: locale, voiceId: options.agentVoiceId ?? ENV.TTS_VOICE_ID }),
+            body: JSON.stringify({ ...(options.speech ? { speech: options.speech } : { text, language: locale }), voiceId: options.agentVoiceId ?? ENV.TTS_VOICE_ID }),
             signal: options.signal,
         });
         if (!response.ok) throw new Error(`Speech API failed (${response.status}): ${(await response.text()).slice(0, 200)}`);
@@ -64,7 +68,7 @@ export class VoiceService {
         return { engine: 'omnivoice', text, chunks: [], jobs: jobs() };
     }
 
-    static async speechToText(audioUri: string, language: 'en' | 'ar' = 'en'): Promise<string> {
+    static async speechToText(audioUri: string, language: 'en' | 'ar' | 'auto' = 'auto'): Promise<string> {
         try {
             if (
                 ENV.STT_PROVIDER === 'self-hosted'
@@ -79,7 +83,7 @@ export class VoiceService {
         }
     }
 
-    private static async transcribeWithOpenAI(audioUri: string, language: 'en' | 'ar'): Promise<string> {
+    private static async transcribeWithOpenAI(audioUri: string, language: 'en' | 'ar' | 'auto'): Promise<string> {
         if (!ENV.OPENAI_API_KEY) throw new Error('Missing OpenAI API key for speech recognition.');
 
         return this.uploadTranscription(
@@ -98,7 +102,7 @@ export class VoiceService {
         );
     }
 
-    private static async transcribeWithSelfHosted(audioUri: string, language: 'en' | 'ar'): Promise<string> {
+    private static async transcribeWithSelfHosted(audioUri: string, language: 'en' | 'ar' | 'auto'): Promise<string> {
         if (!ENV.STT_SELF_HOSTED_URL) throw new Error('Missing self-hosted STT URL.');
 
         return this.uploadTranscription(
@@ -119,7 +123,7 @@ export class VoiceService {
     private static async uploadTranscription(
         url: string,
         audioUri: string,
-        language: 'en' | 'ar',
+        language: 'en' | 'ar' | 'auto',
         headers: Record<string, string>,
         parameters: Record<string, string>,
         provider: string
@@ -152,7 +156,8 @@ export class VoiceService {
             fieldName: 'file',
             mimeType,
             headers,
-            parameters: { ...parameters, language },
+            // Let the transcription model recognize mixed speech unless explicitly restricted.
+            parameters: { ...parameters, ...(language !== 'auto' && { language }) },
         });
         if (response.status < 200 || response.status >= 300) {
             throw new Error(`${provider} failed (${response.status}): ${response.body.slice(0, 300)}`);

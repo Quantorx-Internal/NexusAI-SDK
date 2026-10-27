@@ -1,9 +1,16 @@
 import { expect, test, mock, afterEach } from 'bun:test';
-const settings = { API_CALLBACK_URL: 'https://bank.test/api/', CHAT_AGENT: 'api', TTS_VOICE_ID: 'alaa-omni' };
+const settings = { API_CALLBACK_URL: 'https://bank.test/api/', CHAT_AGENT: 'api', TTS_VOICE_ID: 'alaa-omni', OPENAI_API_KEY: 'test-only', STT_PROVIDER: 'openai' };
 mock.module('../src/config/constants', () => ({ ENV: settings }));
 const writes = [];
+let transcriptionRequest;
 mock.module('expo-file-system/legacy', () => ({
     cacheDirectory: 'file:///cache/', EncodingType: { Base64: 'base64' },
+    FileSystemUploadType: { MULTIPART: 1 },
+    getInfoAsync: async () => ({ exists: true, size: 2048 }),
+    uploadAsync: async (url, uri, options) => {
+        transcriptionRequest = { url, uri, ...options };
+        return { status: 200, body: JSON.stringify({ text: 'Please show رصيدي' }) };
+    },
     writeAsStringAsync: async (...args) => { writes.push(args); },
 }));
 let speechRequest;
@@ -50,4 +57,36 @@ test('demo flows are available only when explicitly selected', async () => {
     const result = await ChatService.sendMessage('show my spending', 'session', 'en');
     expect(result.ui.showSpendingBreakdown).toBe(true);
     expect(result.spendingBreakdown.length).toBeGreaterThan(0);
+});
+
+test('mixed speech reaches the backend unchanged with the locale only as a hint', async () => {
+    const source = 'Your transfer is ready, شكراً.';
+    await VoiceService.createSpeechBatch(source, 'en', { agentVoiceId: 'fahad-omni' });
+    expect(JSON.parse(speechRequest.body)).toEqual({ text: source, language: 'en', voiceId: 'fahad-omni' });
+});
+test('voice recording uses model language recognition by default, preserving code-switching', async () => {
+    expect(await VoiceService.speechToText('file:///recording.m4a')).toBe('Please show رصيدي');
+    expect(transcriptionRequest.parameters).not.toHaveProperty('language');
+    expect(transcriptionRequest.parameters.model).toBe('gpt-4o-transcribe');
+});
+test('explicit transcription restrictions still work for SDK callers', async () => {
+    await VoiceService.speechToText('file:///recording.m4a', 'ar');
+    expect(transcriptionRequest.parameters.language).toBe('ar');
+});
+
+test('stored chat speech sends only the server reference and voice preference', async () => {
+    const speech = { sessionId: 'test-session', messageId: '964421e5-4784-4af2-9150-883720311fc8' };
+    await VoiceService.createSpeechBatch('Client text must not reach narration', 'ar', { speech, agentVoiceId: 'fahad-omni' });
+    expect(JSON.parse(speechRequest.body)).toEqual({ speech, voiceId: 'fahad-omni' });
+    expect(speechRequest.url).toBe('https://bank.test/api/tts/reply?stream=1');
+});
+test('a stored reply can be played without sending its text again', async () => {
+    const speech = { sessionId: 'test-session', messageId: '964421e5-4784-4af2-9150-883720311fc8' };
+    await VoiceService.createSpeechBatch('', 'en', { speech });
+    expect(JSON.parse(speechRequest.body)).not.toHaveProperty('text');
+});
+test('chat responses retain the server speech reference through normalization', async () => {
+    const speech = { sessionId: 'session', messageId: '964421e5-4784-4af2-9150-883720311fc8' };
+    globalThis.fetch = async () => Response.json({ message: 'Your balance', speech, ui: {} });
+    expect((await ChatService.sendMessage('show balance', 'session', 'en')).speech).toEqual(speech);
 });
