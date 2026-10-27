@@ -106,9 +106,9 @@ function standingIntents(locale: 'en' | 'ar'): Suggestion[] {
             message: isAr ? 'اعرض مصاريفي' : 'Show me my spending',
         },
         {
-            id: 'intent-loans',
-            label: isAr ? 'تمويل يناسبني' : 'Loans for me',
-            message: isAr ? 'ايش التمويلات اللي اقدر اقدم عليها؟' : 'Which loans can I apply for?',
+            id: 'intent-savings',
+            label: isAr ? 'ادخار يناسبني' : 'Savings for me',
+            message: isAr ? 'وش خطط الادخار اللي تناسبني؟' : 'Which savings plans suit me?',
         },
         {
             id: 'intent-activity',

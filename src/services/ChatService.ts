@@ -725,6 +725,24 @@ function getMockResponse(message: string, sessionId: string, locale: string, eve
         };
     }
 
+    // ===== SAVINGS QUERIES =====
+    // "Which savings plans suit me?": the saving products, as the server would offer them.
+    if (/\b(saving|savings|save money|deposit plan)\b/.test(lowerMessage) || /ادخار|أدخر|ادخر|توفير/.test(message)) {
+        const productRecommendation = getMockProductRecommendation(
+            { lowSavings: true },
+            3,
+            'Your salary is transferred here and your balance stays well above your monthly spending, so a plan that saves before you spend fits you.',
+            'راتبك يتحوّل هنا ورصيدك أعلى من مصروفك الشهري بفرق مريح، فخطة تدّخر قبل ما تصرف تناسبك.'
+        );
+        return {
+            message: isAr
+                ? 'هذي خطط الادخار اللي تناسب طريقة صرفك. اختر اللي يعجبك وأساعدك تبدأ.'
+                : 'Here are the savings plans that fit how you spend. Pick one and I will help you start.',
+            sessionId,
+            ui: { ...EMPTY_UI, productRecommendation },
+        };
+    }
+
     // ===== SUBSCRIPTION QUERIES =====
     if (lowerMessage.includes('subscription') || lowerMessage.includes('اشتراك') ||
         lowerMessage.includes('اشتراكات') || lowerMessage.includes('recurring') ||
