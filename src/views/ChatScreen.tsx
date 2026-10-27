@@ -15,14 +15,9 @@ import { useTheme } from '../contexts/ThemeContext';
 import { assistantName } from '../theme/theme';
 import { preferences as pref } from '../theme/tokens';
 import { PreferencesScreen } from './PreferencesScreen';
-import { demoLoanOptions } from '../lib/loanOptions';
+import { BankSnapshotService, BankSnapshot } from '../services/BankSnapshotService';
 import { computeSuggestions } from '../lib/suggestions';
-import { mockAccounts } from '../data/accounts';
-import { mockBeneficiaries } from '../data/beneficiaries';
 import { mockSubscriptions } from '../data/subscriptions';
-import { mockBills } from '../data/bills';
-import { mockCards } from '../data/cards';
-import { mockSpendingBreakdown } from '../data/spending';
 import { AGENT_VOICES, AgentVoice, AgentVoiceId, getAgentVoice } from '../config/agentVoices';
 import { color } from '../theme/tokens';
 import { ENV } from '../config/constants';
@@ -33,7 +28,7 @@ export function ChatScreen() {
     const { locale, setLocale, isRTL } = useLocale();
     const { theme, version: themeVersion, preferencesOpened, markPreferencesOpened } = useTheme();
     const [showPreferences, setShowPreferences] = React.useState(false);
-    const { messages, isLoading, isTranscribing, sendMessage, handlers, isRecording, level, silenceProgress, startRecording, stopRecording, cancelRecording, resetChat } = useChatViewModel({ locale });
+    const { messages, sessionId, isLoading, isTranscribing, sendMessage, handlers, isRecording, level, silenceProgress, startRecording, stopRecording, cancelRecording, resetChat } = useChatViewModel({ locale });
     const flatListRef = useRef<FlatList>(null);
     const [availableVoices, setAvailableVoices] = React.useState(AGENT_VOICES.filter(v => v.id !== 'sara-omni'));
     const [selectedVoiceId, setSelectedVoiceId] = React.useState<AgentVoiceId>('alaa-omni');
@@ -69,37 +64,40 @@ export function ChatScreen() {
         return () => { cancelled = true; controller.abort(); };
     }, []);
 
-    // Compute welcome summary from mock data
-    const welcomeSummary = useMemo<WelcomeSummary>(() => {
-        const totalBalance = mockAccounts.reduce((sum, acc) => sum + acc.balance, 0);
-        const monthlySpending = mockSpendingBreakdown.reduce((sum, item) => sum + item.amount, 0);
-        const pendingBills = mockBills.filter(b => b.status === 'pending' || b.status === 'overdue');
-        const pendingBillsAmount = pendingBills.reduce((sum, b) => sum + b.amount, 0);
-        const activeCards = mockCards.filter(c => c.status === 'active').length;
-
-        // The loan the app would lead with for this customer, already sized to their month.
-        const options = demoLoanOptions();
-        const featured = options.available.find(o => o.product.id === options.featured);
-        const loan = featured?.reach
-            ? {
-                name: featured.product.name,
-                nameAr: featured.product.nameAr || featured.product.name,
-                upTo: featured.reach.amount,
-                monthly: featured.reach.monthly,
-                months: featured.reach.months,
-            }
-            : null;
-
-        return {
-            totalBalance,
-            accounts: mockAccounts.length,
-            monthlySpending,
-            spendingCategories: mockSpendingBreakdown.length,
-            pendingBills: { count: pendingBills.length, amount: pendingBillsAmount },
-            activeCards,
-            loan,
+    /**
+     * The customer's banking snapshot, from the server, per chat session: the
+     * welcome summary, the chips and the composer's completions all read it,
+     * so what the assistant says before the user asks is what its tools
+     * would answer. A new session fetches again, since the server draws the
+     * month's figures per session.
+     */
+    const [snapshot, setSnapshot] = React.useState<BankSnapshot | null>(null);
+    const [snapshotLoading, setSnapshotLoading] = React.useState(true);
+    useEffect(() => {
+        let cancelled = false;
+        const controller = new AbortController();
+        setSnapshotLoading(true);
+        BankSnapshotService.fetch(sessionId, controller.signal)
+            .then(result => {
+                if (cancelled) return;
+                setSnapshot(result);
+            })
+            .catch(error => {
+                if (!cancelled) console.warn('Failed to load the banking snapshot:', error);
+            })
+            .finally(() => {
+                if (!cancelled) setSnapshotLoading(false);
+            });
+        return () => {
+            cancelled = true;
+            controller.abort();
         };
-    }, []);
+    }, [sessionId]);
+
+    const welcomeSummary = useMemo<WelcomeSummary | null>(
+        () => (snapshot ? BankSnapshotService.welcomeSummary(snapshot) : null),
+        [snapshot]
+    );
 
     const getWelcomeSpeechText = useCallback(() => {
         const clientName = locale === 'ar' ? 'محمد' : 'Mohammed';
@@ -294,26 +292,26 @@ export function ChatScreen() {
     const suggestions = useMemo(
         () =>
             computeSuggestions({
-                accounts: mockAccounts,
-                bills: mockBills,
-                cards: mockCards,
+                accounts: snapshot?.accounts ?? [],
+                bills: snapshot?.bills ?? [],
+                cards: snapshot?.cards ?? [],
                 locale,
                 exclude: messages.filter(m => m.role === 'user').map(m => m.content),
                 // The welcome screen keeps the overdue bill as the lead and adds one insight question.
                 promote: messages.length === 0 ? 'insight' : undefined,
             }),
-        [messages, locale]
+        [messages, locale, snapshot]
     );
 
     /** Entity candidates the composer completes against while typing. */
     const entityData = useMemo(
         () => ({
-            beneficiaries: mockBeneficiaries,
-            accounts: mockAccounts,
-            cards: mockCards,
-            bills: mockBills,
+            beneficiaries: snapshot?.beneficiaries ?? [],
+            accounts: snapshot?.accounts ?? [],
+            cards: snapshot?.cards ?? [],
+            bills: snapshot?.bills ?? [],
         }),
-        []
+        [snapshot]
     );
 
     /**
@@ -512,6 +510,7 @@ export function ChatScreen() {
                 {showWelcome ? (
                     <WelcomeView
                         summary={welcomeSummary}
+                        loading={snapshotLoading}
                         locale={locale}
                         isRTL={isRTL}
                         onQuickAction={handleSend}

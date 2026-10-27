@@ -639,6 +639,7 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
 
     return {
         messages,
+        sessionId,
         isLoading,
         isTranscribing,
         sendMessage,

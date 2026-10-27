@@ -21,21 +21,28 @@ import { tenureLabel } from '../../lib/loans';
  * card, so one system runs through the whole chat.
  */
 
+/**
+ * What the assistant can say. A null figure means that part did not load
+ * from the server, and the summary leaves it out rather than guessing.
+ */
 export interface WelcomeSummary {
-    totalBalance: number;
+    totalBalance: number | null;
     /** How many accounts the balance adds up. */
     accounts?: number;
-    monthlySpending: number;
+    monthlySpending: number | null;
     /** How many categories the spending card shows. */
     spendingCategories?: number;
-    pendingBills: { count: number; amount: number };
-    activeCards: number;
+    pendingBills: { count: number; amount: number } | null;
+    activeCards: number | null;
     /** A loan the app already sized for this customer, for the stack. */
     loan?: { name: string; nameAr: string; upTo: number; monthly: number; months: number } | null;
 }
 
 interface WelcomeViewProps {
+    /** Null while the snapshot is loading, or when nothing could be loaded. */
     summary: WelcomeSummary | null;
+    /** The snapshot is still on its way: a skeleton instead of a summary. */
+    loading?: boolean;
     locale: Locale;
     isRTL?: boolean;
     onQuickAction: (action: string) => void;
@@ -63,49 +70,69 @@ const TYPING_START_MS = 350;
 const arCount = (n: number, one: string, two: string, few: string, many: string) =>
     n === 1 ? one : n === 2 ? two : n <= 10 ? `${n} ${few}` : `${n} ${many}`;
 
-function buildSegments(summary: WelcomeSummary, locale: Locale): Segment[] {
+function buildSegments(summary: WelcomeSummary | null, locale: Locale): Segment[] {
     const isAr = locale === 'ar';
     const currency = CURRENCY_WORD[locale];
     const name = isAr ? 'محمد' : 'Mohammed';
-    const balance = `${plain(summary.totalBalance, 2)} ${currency}`;
-    const spending = `${plain(summary.monthlySpending)} ${currency}`;
-    const bills = summary.pendingBills;
-    const billsAmount = `${plain(bills.amount)} ${currency}`;
+    const hasBalance = summary?.totalBalance != null;
+    const hasSpending = summary?.monthlySpending != null;
+    const bills = summary?.pendingBills ?? null;
+
+    // Nothing loaded: a greeting, and the question. The figures come when they come.
+    if (!summary || (!hasBalance && !hasSpending && !bills)) {
+        return [{ kind: 'text', text: isAr ? `هلا ${name}. كيف أقدر أفيدك اليوم؟` : `Hello ${name}. How can I help you today?` }];
+    }
+
+    const balance = hasBalance ? `${plain(summary.totalBalance!, 2)} ${currency}` : '';
+    const spending = hasSpending ? `${plain(summary.monthlySpending!)} ${currency}` : '';
+    const billsAmount = bills ? `${plain(bills.amount)} ${currency}` : '';
 
     if (isAr) {
-        const segments: Segment[] = [
-            { kind: 'text', text: `هلا ${name}. رصيدك ` },
-            { kind: 'tag', text: balance, tone: 'brandTint', message: 'اعرض رصيدي' },
-            { kind: 'text', text: '، وصرفت ' },
-            { kind: 'tag', text: spending, tone: 'neutralTint', message: 'اعرض مصاريفي' },
-            { kind: 'text', text: ' هالشهر.' },
-        ];
-        if (bills.count > 0) {
+        const segments: Segment[] = [{ kind: 'text', text: `هلا ${name}.` }];
+        if (hasBalance) {
+            segments.push({ kind: 'text', text: ' رصيدك ' }, { kind: 'tag', text: balance, tone: 'brandTint', message: 'اعرض رصيدي' });
+        }
+        if (hasSpending) {
+            segments.push(
+                { kind: 'text', text: hasBalance ? '، وصرفت ' : ' صرفت ' },
+                { kind: 'tag', text: spending, tone: 'neutralTint', message: 'اعرض مصاريفي' },
+                { kind: 'text', text: ' هالشهر.' }
+            );
+        } else if (hasBalance) {
+            segments.push({ kind: 'text', text: '.' });
+        }
+        if (bills && bills.count > 0) {
             segments.push(
                 { kind: 'text', text: ' عندك ' },
                 { kind: 'tag', text: arCount(bills.count, 'فاتورة', 'فاتورتين', 'فواتير', 'فاتورة'), tone: 'warning', message: 'اعرض فواتيري' },
                 { kind: 'text', text: ` معلّقة بـ ${billsAmount}، وأقدر أدفعها كلها الآن.` }
             );
-        } else {
+        } else if (bills) {
             segments.push({ kind: 'text', text: ' ما عندك فواتير معلّقة.' });
         }
         return segments;
     }
 
-    const segments: Segment[] = [
-        { kind: 'text', text: `Hello ${name}. Your balance is ` },
-        { kind: 'tag', text: balance, tone: 'brandTint', message: 'Show my balance' },
-        { kind: 'text', text: ', and you spent ' },
-        { kind: 'tag', text: spending, tone: 'neutralTint', message: 'Show me my spending' },
-        { kind: 'text', text: ' this month.' },
-    ];
-    if (bills.count > 0) {
+    const segments: Segment[] = [{ kind: 'text', text: `Hello ${name}.` }];
+    if (hasBalance) {
+        segments.push({ kind: 'text', text: ' Your balance is ' }, { kind: 'tag', text: balance, tone: 'brandTint', message: 'Show my balance' });
+    }
+    if (hasSpending) {
+        segments.push(
+            { kind: 'text', text: hasBalance ? ', and you spent ' : ' You spent ' },
+            { kind: 'tag', text: spending, tone: 'neutralTint', message: 'Show me my spending' },
+            { kind: 'text', text: ' this month.' }
+        );
+    } else if (hasBalance) {
+        segments.push({ kind: 'text', text: '.' });
+    }
+    if (bills && bills.count > 0) {
         segments.push(
             { kind: 'text', text: ' You have ' },
             { kind: 'tag', text: `${bills.count} ${bills.count === 1 ? 'bill' : 'bills'}`, tone: 'warning', message: 'Show me my bills' },
             { kind: 'text', text: ` pending, ${billsAmount} in all, and I can pay them now.` }
         );
-    } else {
+    } else if (bills) {
         segments.push({ kind: 'text', text: ' Nothing is pending.' });
     }
     return segments;
@@ -117,7 +144,7 @@ function buildSuggestions(summary: WelcomeSummary, locale: Locale): Suggestion[]
     const out: Suggestion[] = [];
     const bills = summary.pendingBills;
 
-    if (bills.count > 0) {
+    if (bills && bills.count > 0) {
         out.push({
             id: 'bills',
             Icon: FileText,
@@ -145,17 +172,19 @@ function buildSuggestions(summary: WelcomeSummary, locale: Locale): Suggestion[]
             message: isAr ? `أبي أشوف ${name}` : `Show me the ${name}`,
         });
     }
-    out.push({
-        id: 'spending',
-        Icon: Wallet,
-        tone: 'brandTint',
-        title: isAr ? 'حلّل مصاريف الشهر' : "Analyse this month's spending",
-        subtitle: isAr
-            ? `${plain(summary.monthlySpending)} ${currency}${summary.spendingCategories ? ` في ${arCount(summary.spendingCategories, 'فئة', 'فئتين', 'فئات', 'فئة')}` : ''}`
-            : `${plain(summary.monthlySpending)} ${currency}${summary.spendingCategories ? ` across ${summary.spendingCategories} categories` : ''}`,
-        cta: isAr ? 'حلّلها' : 'Analyse it',
-        message: isAr ? 'حلّل مصاريفي هالشهر' : 'Analyse my spending this month',
-    });
+    if (summary.monthlySpending != null) {
+        out.push({
+            id: 'spending',
+            Icon: Wallet,
+            tone: 'brandTint',
+            title: isAr ? 'حلّل مصاريف الشهر' : "Analyse this month's spending",
+            subtitle: isAr
+                ? `${plain(summary.monthlySpending)} ${currency}${summary.spendingCategories ? ` في ${arCount(summary.spendingCategories, 'فئة', 'فئتين', 'فئات', 'فئة')}` : ''}`
+                : `${plain(summary.monthlySpending)} ${currency}${summary.spendingCategories ? ` across ${summary.spendingCategories} categories` : ''}`,
+            cta: isAr ? 'حلّلها' : 'Analyse it',
+            message: isAr ? 'حلّل مصاريفي هالشهر' : 'Analyse my spending this month',
+        });
+    }
     return out;
 }
 
@@ -179,10 +208,10 @@ const WORDS = {
     en: { summaryTitle: 'Your summary, before you ask', replay: 'Replay', canDo: 'I can do these for you now', next: 'Next', of: (i: number, n: number) => `${i} / ${n}` },
 } as const;
 
-export function WelcomeView({ summary, locale, isRTL = false, onQuickAction }: WelcomeViewProps) {
+export function WelcomeView({ summary, loading = false, locale, isRTL = false, onQuickAction }: WelcomeViewProps) {
     const words = WORDS[locale];
     const flip = useLayoutRTL();
-    const segments = useMemo(() => (summary ? buildSegments(summary, locale) : []), [summary, locale]);
+    const segments = useMemo(() => (loading ? [] : buildSegments(summary, locale)), [summary, locale, loading]);
     const suggestions = useMemo(() => (summary ? buildSuggestions(summary, locale) : []), [summary, locale]);
     const total = useMemo(() => segments.reduce((n, s) => n + s.text.length, 0), [segments]);
 
@@ -238,9 +267,15 @@ export function WelcomeView({ summary, locale, isRTL = false, onQuickAction }: W
             </View>
 
             {/* The summary, typed. Words are laid out as tokens so the tags can sit inline. */}
-            {summary ? (
+            {loading ? (
+                <View style={styles.skeleton} accessibilityRole="progressbar">
+                    <View style={[styles.skeletonLine, { width: '92%' }]} />
+                    <View style={[styles.skeletonLine, { width: '78%' }]} />
+                    <View style={[styles.skeletonLine, { width: '60%' }]} />
+                </View>
+            ) : (
                 <TypedSummary segments={segments} typed={typed} flip={flip} onTag={onQuickAction} />
-            ) : null}
+            )}
 
             {/* The stack: three things the assistant can do now. */}
             {suggestions.length > 0 && current ? (
@@ -419,6 +454,8 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     tabular: { fontVariant: ['tabular-nums'] },
+    skeleton: { gap: 12, minHeight: welcome.summaryLine * 3, justifyContent: 'center' },
+    skeletonLine: { height: welcome.summaryLine - 14, borderRadius: radius.inner, backgroundColor: color.surface3 },
     stackSection: { gap: 8 },
     stackHeader: { alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
     stack: { paddingBottom: 12 },
