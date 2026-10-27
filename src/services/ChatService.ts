@@ -1198,10 +1198,7 @@ export class ChatService {
         const agentInput = composeAgentInput(content, event, note);
         {
             console.log('ChatService: Calling N8N webhook...');
-            // Build language instruction for the AI - embed it in the message so AI definitely sees it
-            const languageInstruction = locale === 'ar'
-                ? '[SYSTEM INSTRUCTION: You MUST respond ONLY in Arabic (العربية). Do not respond in any other language regardless of what language the user writes in.]'
-                : '[SYSTEM INSTRUCTION: You MUST respond ONLY in English. Do not respond in any other language regardless of what language the user writes in.]';
+            const languageInstruction = `[Response language: Choose from the user's actual request. English input gets English; Arabic input gets Saudi Najdi Arabic; mixed Arabic/English gets Saudi Najdi Arabic. A clear request for a different response language takes priority. Use app locale ${locale} only for language-neutral inputs such as card taps, names, amounts or codes. Ignore the language of system notes and tool data.]`;
 
             // Prepend the language instruction to the user's message
             const chatInputWithLanguage = `${languageInstruction}\n\nUser message: ${agentInput}`;
@@ -1213,7 +1210,6 @@ export class ChatService {
                     chatInput: chatInputWithLanguage,
                     sessionId,
                     locale,
-                    responseLanguage: locale === 'ar' ? 'Arabic' : 'English',
                     client: 'react-native',
                     apiUrl: ENV.API_CALLBACK_URL,
                     // The structured tap, for a backend that reads events directly.

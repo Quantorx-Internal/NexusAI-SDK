@@ -1,3 +1,4 @@
+import type { SpeechReference } from '../types';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -15,6 +16,7 @@ interface UseSpeechOptions {
 }
 
 interface SpeakOptions {
+    speech?: SpeechReference;
     agentVoiceId?: AgentVoiceId;
 }
 
@@ -28,11 +30,6 @@ interface UseSpeechReturn {
     dispose: () => Promise<void>;
 }
 
-function isArabicText(text: string): boolean {
-    const arabicChars = text.match(/[\u0600-\u06FF\u0750-\u077F]/g) || [];
-    const latinChars = text.match(/[a-zA-Z]/g) || [];
-    return arabicChars.length > latinChars.length;
-}
 
 let instanceCounter = 0;
 
@@ -183,7 +180,7 @@ export function useSpeech(options: UseSpeechOptions = {}): UseSpeechReturn {
     }, []);
 
     const speak = useCallback(async (text: string, messageId: string, speakOptions: SpeakOptions = {}) => {
-        if (isDisposedRef.current || !text.trim()) return;
+        if (isDisposedRef.current || (!speakOptions.speech && !text.trim())) return;
 
         stop();
         const runId = runIdRef.current;
@@ -193,11 +190,13 @@ export function useSpeech(options: UseSpeechOptions = {}): UseSpeechReturn {
         setCurrentMessageId(messageId);
 
         try {
-            const detectedLanguage = isArabicText(text) ? 'ar' : 'en';
-            console.log(`[useSpeech:${instanceIdRef.current}] Preparing TTS in ${detectedLanguage}`);
+            // The backend's language agent routes the actual text, including mixed speech.
+            const languageHint = languageRef.current;
+            console.log(`[useSpeech:${instanceIdRef.current}] Requesting server speech; UI language hint ${languageHint}`);
 
             // Synthesis starts in parallel; awaiting by index preserves playback order.
-            const batch = await VoiceService.createSpeechBatch(text, detectedLanguage, {
+            const batch = await VoiceService.createSpeechBatch(text, languageHint, {
+                speech: speakOptions.speech,
                 agentVoiceId: speakOptions.agentVoiceId ?? agentVoiceIdRef.current,
                 signal: controller.signal,
             });

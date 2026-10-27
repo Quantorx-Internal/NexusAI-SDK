@@ -298,6 +298,7 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
             const botMsg: ChatMessage = {
                 id: `${turnId}-assistant`,
                 role: 'assistant',
+                speech: response.speech,
                 content: response.message || response.response || "I'm not sure how to respond to that.",
                 timestamp: new Date().toISOString(),
                 ui: response.ui,
@@ -587,7 +588,7 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
 
                     while (retries > 0 && !text) {
                         try {
-                            text = await VoiceService.speechToText(uri, locale);
+                            text = await VoiceService.speechToText(uri);
                         } catch (sttError: any) {
                             retries--;
                             if (retries > 0) {
