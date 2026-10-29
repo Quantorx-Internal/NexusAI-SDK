@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { I18nManager } from 'react-native';
+import { reloadAppAsync } from 'expo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppResetManager } from '../services/AppResetManager';
 
@@ -153,6 +154,31 @@ const translations: Record<Locale, Record<string, string>> = {
 
 const LOCALE_STORAGE_KEY = '@ai_assistant_locale';
 
+const DIRECTION_RELOAD_KEY = '@ai_assistant_direction_reload';
+
+/**
+ * React Native applies forceRTL only on the next load. A session that keeps
+ * running after it sits in a mixed state, an English screen on a
+ * right-to-left engine or the reverse, where rows, text and horizontal lists
+ * each mirror differently. So when the direction must change, reload now.
+ * Returns true when a reload is under way.
+ *
+ * The guard stops a loop: if one reload did not take, the session carries on
+ * in the mixed state, which the hand-mirrored rows still cover.
+ */
+async function alignEngineDirection(rtl: boolean): Promise<boolean> {
+    if (I18nManager.isRTL === rtl) {
+        await AsyncStorage.removeItem(DIRECTION_RELOAD_KEY);
+        return false;
+    }
+    I18nManager.allowRTL(rtl);
+    I18nManager.forceRTL(rtl);
+    if ((await AsyncStorage.getItem(DIRECTION_RELOAD_KEY)) === String(rtl)) return false;
+    await AsyncStorage.setItem(DIRECTION_RELOAD_KEY, String(rtl));
+    await reloadAppAsync('Language direction changed');
+    return true;
+}
+
 const LocaleContext = createContext<LocaleContextType | undefined>(undefined);
 
 export function LocaleProvider({
@@ -182,12 +208,7 @@ export function LocaleProvider({
                     setLocaleState(savedLocale);
                     localeRef.current = savedLocale;
 
-                    // Set RTL if needed (note: requires app restart to take effect)
-                    const shouldBeRTL = savedLocale === 'ar';
-                    if (I18nManager.isRTL !== shouldBeRTL) {
-                        I18nManager.allowRTL(shouldBeRTL);
-                        I18nManager.forceRTL(shouldBeRTL);
-                    }
+                    if (await alignEngineDirection(savedLocale === 'ar')) return;
                 }
             } catch (error) {
                 console.error('Failed to load locale:', error);
@@ -220,14 +241,10 @@ export function LocaleProvider({
             // STEP 2: Save the new locale
             await AsyncStorage.setItem(LOCALE_STORAGE_KEY, newLocale);
 
-            // STEP 3: Set RTL direction
-            const shouldBeRTL = newLocale === 'ar';
-            if (I18nManager.isRTL !== shouldBeRTL) {
-                I18nManager.allowRTL(shouldBeRTL);
-                I18nManager.forceRTL(shouldBeRTL);
-                // Note: Full RTL requires app restart on React Native
-                // We handle visual RTL manually in styles
-            }
+            // STEP 3: Match the engine's direction to the language. When it
+            // has to change, the app reloads here and comes back in the new
+            // language with every row, text and list mirrored natively.
+            if (await alignEngineDirection(newLocale === 'ar')) return;
 
             // STEP 4: Update locale state (this triggers re-renders)
             setLocaleState(newLocale);

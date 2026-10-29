@@ -1,12 +1,13 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, Pressable,
-    NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native';
 import { Wallet, PiggyBank, EyeOff } from 'lucide-react-native';
 import { SectionHeader, InstrumentSurface, PageDots, InstrumentPalette } from '../../ui';
-import { color, instrument, font, text, iconStroke, radius } from '../../../theme/tokens';
+import { color, instrument, font, text, iconStroke, radius, face, rtlBase } from '../../../theme/tokens';
+import { useSnapCarousel } from '../../../hooks/useSnapCarousel';
 import { splitAmount } from '../../../lib/utils';
+import { CountUp } from '../../../lib/motion';
 import { Account } from '../../../types';
 
 /**
@@ -41,26 +42,14 @@ export function AccountListBlock({
     selectedId,
     isRTL,
 }: AccountListBlockProps) {
-    const [page, setPage] = useState(0);
-
-    const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-        setPage(Math.round(e.nativeEvent.contentOffset.x / STRIDE));
-    }, []);
+    const { page, scrollProps } = useSnapCarousel(accounts.length, STRIDE);
 
     if (accounts.length === 0) return null;
 
     return (
         <View>
             {title ? <SectionHeader title={title} count={accounts.length} /> : null}
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.scroller}
-                snapToInterval={STRIDE}
-                decelerationRate="fast"
-                onScroll={onScroll}
-                scrollEventThrottle={16}
-            >
+            <ScrollView {...scrollProps} contentContainerStyle={styles.scroller}>
                 {accounts.map(account => (
                     <AccountInstrument
                         key={account.id}
@@ -96,7 +85,7 @@ function AccountInstrument({
     const palette: InstrumentPalette = isSavings ? 'ink' : 'brand';
     const Icon = isSavings ? PiggyBank : Wallet;
 
-    const { head, decimals } = splitAmount(account.balance, account.currency, locale);
+    const { decimals } = splitAmount(account.balance, account.currency, locale);
 
     const t = {
         available: isAr ? 'المتاح' : 'Available',
@@ -156,7 +145,11 @@ function AccountInstrument({
                         <View style={styles.balanceRow}>
                             {visible ? (
                                 <Text style={styles.balance} numberOfLines={1} adjustsFontSizeToFit>
-                                    {head}
+                                    <CountUp
+                                        value={account.balance}
+                                        format={(n) => splitAmount(n, account.currency, locale).head}
+                                        delay={260}
+                                    />
                                     <Text style={styles.decimals}>{decimals}</Text>
                                 </Text>
                             ) : (
@@ -201,18 +194,18 @@ const styles = StyleSheet.create({
     name: {
         fontSize: 15,
         lineHeight: 20,
-        fontWeight: '700',
-        fontFamily: font.family,
+        ...face('700'),
         color: instrument.onSurfaceStrong,
     },
     type: {
         fontSize: 12,
         lineHeight: 16,
         fontFamily: font.family,
+        ...rtlBase,
         color: instrument.onSurface,
     },
     pill: {
-        height: instrument.pillHeight,
+        minHeight: instrument.pillHeight,
         paddingHorizontal: 10,
         borderRadius: radius.pill,
         backgroundColor: instrument.pillFill,
@@ -221,8 +214,7 @@ const styles = StyleSheet.create({
     },
     pillText: {
         fontSize: 11,
-        fontWeight: '600',
-        fontFamily: font.family,
+        ...face('600'),
         color: instrument.onSurfaceStrong,
     },
     footer: { marginTop: 'auto' },
@@ -230,6 +222,7 @@ const styles = StyleSheet.create({
         fontSize: 12,
         lineHeight: 16,
         fontFamily: font.family,
+        ...rtlBase,
         color: instrument.onSurface,
         marginBottom: 2,
     },
@@ -244,15 +237,14 @@ const styles = StyleSheet.create({
     balance: {
         fontSize: instrument.balanceSize,
         lineHeight: instrument.balanceLine,
-        fontWeight: '700',
-        fontFamily: font.family,
+        ...face('700'),
         color: instrument.onSurfaceStrong,
         fontVariant: ['tabular-nums'],
         flexShrink: 1,
     },
     decimals: {
         fontSize: instrument.decimalsSize,
-        fontWeight: '600',
+        ...face('600'),
         color: instrument.onSurface,
     },
     hiddenGroup: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
@@ -262,7 +254,9 @@ const styles = StyleSheet.create({
         // The number identifies the account — it must never ellipsise; the
         // balance is the flexible one.
         flexShrink: 0,
-        fontFamily: font.mono,
+        fontFamily: font.family,
+        ...rtlBase,
+        fontVariant: ['tabular-nums'],
         color: instrument.onSurface,
         // Masked numbers stay LTR in every locale.
         writingDirection: 'ltr',

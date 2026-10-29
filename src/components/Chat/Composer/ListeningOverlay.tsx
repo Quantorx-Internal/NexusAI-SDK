@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowUp, X, Pencil } from 'lucide-react-native';
 import * as tokens from '../../../theme/tokens';
 import { Waveform } from './Waveform';
+import { face } from '../../../theme/tokens';
 
 /**
  * Listening mode (design §9).
@@ -161,18 +162,18 @@ const styles = StyleSheet.create({
     transcript: {
         fontSize: tokens.composer.listening.transcriptSize,
         lineHeight: tokens.composer.listening.transcriptLine,
-        fontWeight: '600',
+        ...face('600'),
         fontFamily: tokens.font.family,
         color: tokens.color.text.primary,
         textAlign: 'center',
     },
-    partial: { color: tokens.color.text.tertiary, fontWeight: '600' },
+    partial: { color: tokens.color.text.tertiary, ...face('600') },
     waveform: { alignItems: 'center' },
     hintBlock: { alignItems: 'center', gap: 8, marginTop: -8 },
     hint: {
         fontSize: 13,
         lineHeight: 18,
-        fontWeight: '600',
+        ...face('600'),
         fontFamily: tokens.font.family,
         color: tokens.color.brand[700],
         opacity: 0.75,

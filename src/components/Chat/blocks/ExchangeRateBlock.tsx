@@ -4,6 +4,8 @@ import { ArrowRight } from 'lucide-react-native';
 import { Card } from '../../ui';
 import { color, layout, size, text, iconStroke } from '../../../theme/tokens';
 import { ExchangeRate } from '../../../types';
+import { AR_DATE_LOCALE } from '../../../lib/utils';
+import { Mirror, useVisualRTL } from '../../../contexts/LayoutDirectionContext';
 
 /**
  * Family D · ExchangeRate.
@@ -22,6 +24,7 @@ interface ExchangeRateBlockProps {
 }
 
 export function ExchangeRateBlock({ rate, locale = 'en' }: ExchangeRateBlockProps) {
+    const visualRTL = useVisualRTL();
     const isAr = locale === 'ar';
     if (!rate || typeof rate.rate !== 'number' || !isFinite(rate.rate)) return null;
 
@@ -43,11 +46,9 @@ export function ExchangeRateBlock({ rate, locale = 'en' }: ExchangeRateBlockProp
 
             <View style={styles.pair}>
                 <Text style={text('cardTitle')}>{rate.from}</Text>
-                <ArrowRight
-                    size={size.icon.sm}
-                    color={color.text.tertiary}
-                    strokeWidth={iconStroke}
-                />
+                <Mirror when={visualRTL}>
+                    <ArrowRight size={size.icon.sm} color={color.text.tertiary} strokeWidth={iconStroke} />
+                </Mirror>
                 <Text style={text('cardTitle')}>{rate.to}</Text>
             </View>
 
@@ -72,7 +73,7 @@ export function ExchangeRateBlock({ rate, locale = 'en' }: ExchangeRateBlockProp
 
 function formatUpdated(timestamp: string, locale: 'en' | 'ar'): string {
     try {
-        return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-SA' : 'en-GB', {
+        return new Intl.DateTimeFormat(locale === 'ar' ? AR_DATE_LOCALE : 'en-GB', {
             day: 'numeric',
             month: 'short',
             hour: 'numeric',

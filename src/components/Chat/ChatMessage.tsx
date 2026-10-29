@@ -1,12 +1,27 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator, I18nManager } from 'react-native';
 import { BrainCircuit, User, Volume2, VolumeX } from 'lucide-react-native';
 import { ChatMessage as ChatMessageType, Account, Beneficiary, Card, Bill, SpendingBreakdown, Subscription, ProductRecommendation, Transaction, LoanOfferUI } from '../../types';
 import { SimpleMarkdownRenderer } from './SimpleMarkdownRenderer';
+import { FadeRise, replyStreamDuration } from '../../lib/motion';
 import type { LoanPlanChoice, AdvisorAsk } from './blocks';
 import { Locale } from '../../contexts/LocaleContext';
 import { LoanAdvisorService } from '../../services/LoanAdvisorService';
-import { color } from '../../theme/tokens';
+import { color, font, rtlBase } from '../../theme/tokens';
+import { textDirectionFor } from '../../contexts/LayoutDirectionContext';
+
+/**
+ * Replies that have streamed once. The list recycles rows that scroll away,
+ * and a reply the user has already read must not write itself again.
+ */
+const streamedReplies = new Set<string>();
+
+/** Streams only a reply that has just arrived, and only the first time. */
+const shouldStream = (message: ChatMessageType) =>
+    message.role === 'assistant' &&
+    !!message.content &&
+    !streamedReplies.has(message.id) &&
+    Date.now() - Date.parse(message.timestamp) < 10_000;
 
 interface ChatMessageProps {
     message: ChatMessageType;
@@ -83,6 +98,10 @@ export function ChatMessage({
     isRTL = false,
 }: ChatMessageProps) {
     const isUser = message.role === 'user';
+    const [stream] = useState(() => shouldStream(message));
+    useEffect(() => {
+        if (stream) streamedReplies.add(message.id);
+    }, [stream, message.id]);
     const isThisMessageSpeaking = currentSpeakingMessageId === message.id;
     const isThisMessageLoading = isLoadingSpeech && isThisMessageSpeaking;
 
@@ -229,8 +248,10 @@ export function ChatMessage({
         (isThisMessageSpeaking || isThisMessageLoading) && [styles.speechButtonActive, { backgroundColor: color.brand[50] }],
     ];
 
+    // Each message rises in once when it arrives: the user's at once, the
+    // assistant's a beat later, as if it had just been written.
     return (
-        <View style={containerStyle}>
+        <FadeRise delay={isUser ? 0 : 60} style={containerStyle}>
             <View style={[styles.avatar, isUser ? [styles.userAvatar, { backgroundColor: color.brand[600] }] : [styles.botAvatar, { backgroundColor: color.brand[50] }]]}>
                 {isUser ? (
                     <User size={16} color="#fff" />
@@ -242,7 +263,7 @@ export function ChatMessage({
             <View style={[styles.contentContainer, isUser && styles.userContentContainer]}>
                 {isUser ? (
                     <View style={userBubbleStyle}>
-                        <Text style={[styles.userText, isRTL && styles.textRTL]}>
+                        <Text style={[styles.userText, textDirectionFor(message.display?.label ?? message.content ?? '')]}>
                             {message.display?.label ?? message.content}
                         </Text>
                     </View>
@@ -302,41 +323,45 @@ export function ChatMessage({
                             localLoanRemark={localLoanRemark}
                             isRTL={isRTL}
                             isLayoutRTL={isLayoutRTL}
+                            stream={stream}
                         />
 
-                        {/* Speech toggle button for assistant messages */}
+                        {/* Speech toggle button for assistant messages: once
+                            the reply has finished writing itself. */}
                         {onSpeechToggle && (
-                            <TouchableOpacity
-                                style={speechButtonStyle}
-                                onPress={handleSpeechPress}
-                                disabled={isLoadingSpeech && !isThisMessageSpeaking}
-                            >
-                                {isThisMessageLoading ? (
-                                    <>
-                                        <ActivityIndicator size="small" color={color.brand[600]} />
-                                        <Text style={[styles.speechButtonText, styles.speechButtonTextActive, { color: color.brand[600] }]}>
-                                            {t.loading}
-                                        </Text>
-                                    </>
-                                ) : isThisMessageSpeaking ? (
-                                    <>
-                                        <VolumeX size={14} color={color.brand[600]} />
-                                        <Text style={[styles.speechButtonText, styles.speechButtonTextActive, { color: color.brand[600] }]}>
-                                            {t.stop}
-                                        </Text>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Volume2 size={14} color="#6B7280" />
-                                        <Text style={styles.speechButtonText}>{t.listen}</Text>
-                                    </>
-                                )}
-                            </TouchableOpacity>
+                            <FadeRise delay={stream ? replyStreamDuration(message.content) : 0} distance={4}>
+                                <TouchableOpacity
+                                    style={speechButtonStyle}
+                                    onPress={handleSpeechPress}
+                                    disabled={isLoadingSpeech && !isThisMessageSpeaking}
+                                >
+                                    {isThisMessageLoading ? (
+                                        <>
+                                            <ActivityIndicator size="small" color={color.brand[600]} />
+                                            <Text style={[styles.speechButtonText, styles.speechButtonTextActive, { color: color.brand[600] }]}>
+                                                {t.loading}
+                                            </Text>
+                                        </>
+                                    ) : isThisMessageSpeaking ? (
+                                        <>
+                                            <VolumeX size={14} color={color.brand[600]} />
+                                            <Text style={[styles.speechButtonText, styles.speechButtonTextActive, { color: color.brand[600] }]}>
+                                                {t.stop}
+                                            </Text>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Volume2 size={14} color="#6B7280" />
+                                            <Text style={styles.speechButtonText}>{t.listen}</Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+                            </FadeRise>
                         )}
                     </>
                 )}
             </View>
-        </View>
+        </FadeRise>
     );
 }
 
@@ -393,10 +418,8 @@ const styles = StyleSheet.create({
     userText: {
         color: '#fff',
         fontSize: 15,
-    },
-    textRTL: {
-        textAlign: 'right',
-        writingDirection: 'rtl',
+        fontFamily: font.family,
+        ...rtlBase,
     },
     speechButton: {
         flexDirection: 'row',
@@ -417,6 +440,8 @@ const styles = StyleSheet.create({
     },
     speechButtonText: {
         fontSize: 12,
+        fontFamily: font.family,
+        ...rtlBase,
         color: '#6B7280',
     },
     speechButtonTextActive: {

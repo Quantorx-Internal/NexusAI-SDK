@@ -4,6 +4,7 @@ import { BarChart3, TriangleAlert, RefreshCw, TrendingUp, TrendingDown } from 'l
 import { Card, SectionHeader, IconBox, iconOn, RowDivider } from '../../ui';
 import { color, layout, size, text, iconStroke, Tone } from '../../../theme/tokens';
 import { SpendingInsight } from '../../../types';
+import { useVisualRTL, Mirror } from '../../../contexts/LayoutDirectionContext';
 
 /**
  * Family D · SpendingInsights — one list, not four coloured cards.
@@ -94,6 +95,7 @@ function Sentence({ message, changePercent }: { message: string; changePercent?:
 }
 
 export function SpendingInsightsBlock({ insights, locale = 'en' }: SpendingInsightsBlockProps) {
+    const visualRTL = useVisualRTL();
     if (!insights || insights.length === 0) return null;
     const isAr = locale === 'ar';
 
@@ -113,11 +115,9 @@ export function SpendingInsightsBlock({ insights, locale = 'en' }: SpendingInsig
                             {index > 0 && <RowDivider />}
                             <View style={styles.row}>
                                 <IconBox box={size.iconBox.md} tone={tone}>
-                                    <Icon
-                                        size={size.icon.md}
-                                        color={iconOn(tone)}
-                                        strokeWidth={iconStroke}
-                                    />
+                                    <Mirror when={visualRTL}>
+                                        <Icon size={size.icon.md} color={iconOn(tone)} strokeWidth={iconStroke} />
+                                    </Mirror>
                                 </IconBox>
                                 <View style={styles.rowText}>
                                     <Sentence

@@ -1,17 +1,20 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { color, radius, size, text, Tone, toneSet } from '../../theme/tokens';
-import { useLayoutRTL, row, alignText } from '../../contexts/LayoutDirectionContext';
+import { radius, size, text, Tone, toneSet } from '../../theme/tokens';
+import { useLayoutRTL, row } from '../../contexts/LayoutDirectionContext';
 
 /**
- * Status pill — 20h, 2/8 padding, badge type, 6px dot.
+ * Status tag — "Overdue · 29 Dec", "Pending", "Best for you".
  *
- * The dot appears only when the pill describes a live state (awaiting, pending,
- * active, frozen, overdue) — not when it labels a finished fact (paid) or a
- * category ("Cards", "Travel").
+ * A small rounded tag: the tone's pale fill and its strong ink, no border and
+ * no dot. The capsule-with-a-dot-and-a-border version read as a generated
+ * kit; the fill already carries the status the dot repeated. Tags are
+ * squarer than the action chips (fully round), so a status never looks
+ * tappable.
  *
- * `outlined` is reserved for Priority, the one status that must sit next to a
- * filled pill without competing. Max one filled + one outlined per row.
+ * `dot` and `outlined` are still accepted so callers need not change. An
+ * outlined tag (Priority, beside a filled one) keeps a hairline instead of
+ * the fill.
  */
 interface StatusPillProps {
     label: string;
@@ -21,28 +24,21 @@ interface StatusPillProps {
     icon?: React.ReactNode;
 }
 
-export function StatusPill({
-    label,
-    tone = 'neutralTint',
-    dot = false,
-    outlined = false,
-    icon,
-}: StatusPillProps) {
+export function StatusPill({ label, tone = 'neutralTint', outlined = false, icon }: StatusPillProps) {
     const set = toneSet(tone);
     const flip = useLayoutRTL();
     return (
         <View
             style={[
-                styles.pill,
+                styles.tag,
                 row(flip),
                 outlined
                     ? { borderWidth: 1, borderColor: set.border, backgroundColor: 'transparent' }
                     : { backgroundColor: set.bg },
             ]}
         >
-            {dot && <View style={[styles.dot, { backgroundColor: set.fg }]} />}
             {icon}
-            <Text style={[text('badge', { color: set.fg }), styles.label]} numberOfLines={1}>
+            <Text style={text('badge', { color: set.fgStrong })} numberOfLines={1}>
                 {label}
             </Text>
         </View>
@@ -50,19 +46,16 @@ export function StatusPill({
 }
 
 const styles = StyleSheet.create({
-    pill: {
-        height: size.pill,
+    tag: {
+        minHeight: size.pill,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: radius.pill,
         gap: 4,
+        paddingHorizontal: 6,
+        paddingVertical: 1,
+        borderRadius: radius.tag,
         alignSelf: 'flex-start',
     },
-    dot: { width: 6, height: 6, borderRadius: 3 },
-    // Badge type carries no tracking and no uppercasing — Arabic has neither.
-    label: { textTransform: 'none' },
 });
 
 export default StatusPill;

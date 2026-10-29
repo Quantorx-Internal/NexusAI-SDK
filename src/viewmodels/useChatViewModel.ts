@@ -443,7 +443,12 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
     const nameOf = (item: { name?: string; nameAr?: string } | undefined, fallback = '') =>
         (isAr ? item?.nameAr : item?.name) || item?.name || fallback;
 
-    /** A tap in a list card: the words the user would say, plus the ID the agent needs. */
+    /**
+     * A tap in a list card: the words the user would say, plus the ID the agent
+     * needs. The words are in the screen's language. The agent answers in the
+     * language of the message, so an English hint behind an Arabic tap
+     * ("Pay my Saudi Electricity Company bill") got an English reply.
+     */
     const select = useCallback((kind: 'account' | 'beneficiary' | 'card' | 'bill', id: string, name: string, text: string) => {
         void sendMessage(text, {
             event: { type: 'selection', selections: [{ kind, id, name }] },
@@ -451,13 +456,14 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
         });
     }, [sendMessage]);
 
-    /** A button on a preview card: confirm, edit or cancel. */
+    /** A button on a preview card: confirm, edit or cancel, said in the screen's language. */
     const act = useCallback((card: 'transferPreview' | 'cardPreview' | 'billPaymentPreview', action: 'confirm' | 'edit' | 'cancel', text: string, display: string) => {
-        void sendMessage(text, { event: { type: 'action', card, action }, display });
-    }, [sendMessage]);
+        void sendMessage(isAr ? display : text, { event: { type: 'action', card, action }, display });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sendMessage, isAr]);
 
     const handleAccountSelect = useCallback((account: Account) => {
-        select('account', account.id, nameOf(account, account.name), account.name);
+        select('account', account.id, nameOf(account, account.name), nameOf(account, account.name));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [select, isAr]);
 
@@ -654,35 +660,42 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
         handlers: {
             onAction: handleAction,
             onAccountSelect: handleAccountSelect,
-            onBeneficiarySelect: (b: any) => select('beneficiary', b.id, nameOf(b, b.name), `${b.name}`),
+            onBeneficiarySelect: (b: any) => select('beneficiary', b.id, nameOf(b, b.name), nameOf(b, b.name)),
             onTransferConfirm: () => act('transferPreview', 'confirm', 'Confirm the transfer', isAr ? 'تأكيد التحويل' : 'Confirm the transfer'),
             onTransferEdit: () => act('transferPreview', 'edit', 'I want to edit the transfer details', isAr ? 'أبي أعدّل التحويل' : 'Edit the transfer'),
             onTransferCancel: () => act('transferPreview', 'cancel', 'Cancel the transfer', isAr ? 'إلغاء التحويل' : 'Cancel the transfer'),
             // Card handlers
-            onCardSelect: (card: any) => select('card', card.id, nameOf(card, card.name), `Manage my ${card.name}`),
+            onCardSelect: (card: any) => select('card', card.id, nameOf(card, card.name), isAr ? `أبي أدير ${nameOf(card, card.name)}` : `Manage my ${card.name}`),
             onCardActionConfirm: () => act('cardPreview', 'confirm', 'Confirm the card action', isAr ? 'تأكيد' : 'Confirm'),
             onCardActionCancel: () => act('cardPreview', 'cancel', 'Cancel the card action', isAr ? 'إلغاء' : 'Cancel'),
             // Bill handlers
-            onBillSelect: (bill: any) => select('bill', bill.id, (isAr ? bill.providerNameAr : bill.providerName) || bill.providerName, `Pay my ${bill.providerName} bill`),
+            onBillSelect: (bill: any) => {
+                const provider = (isAr ? bill.providerNameAr : bill.providerName) || bill.providerName;
+                select('bill', bill.id, provider, isAr ? `أبي أدفع فاتورة ${provider}` : `Pay my ${bill.providerName} bill`);
+            },
             onBillPaymentConfirm: () => act('billPaymentPreview', 'confirm', 'Confirm the bill payment', isAr ? 'تأكيد الدفع' : 'Confirm payment'),
             onBillPaymentCancel: () => act('billPaymentPreview', 'cancel', 'Cancel the bill payment', isAr ? 'إلغاء الدفع' : 'Cancel payment'),
             // Recommendation handlers
             onRecommendationApply: (rec: any) => {
                 const name = nameOf(rec?.product);
-                void sendMessage(`I want to apply for ${name}`, {
+                const display = isAr ? `أبي أقدم على ${name}` : `Apply for ${name}`;
+                void sendMessage(isAr ? display : `I want to apply for ${name}`, {
                     event: { type: 'action', card: 'product', action: 'apply', id: rec?.product?.id },
-                    display: isAr ? `أبي أقدم على ${name}` : `Apply for ${name}`,
+                    display,
                 });
             },
             onRecommendationDetails: (rec: any) => {
                 const name = nameOf(rec?.product);
-                void sendMessage(`Tell me more about ${name}`, {
+                const display = isAr ? `وش تفاصيل ${name}؟` : `Tell me more about ${name}`;
+                void sendMessage(display, {
                     event: { type: 'action', card: 'product', action: 'learnMore', id: rec?.product?.id },
-                    display: isAr ? `وش تفاصيل ${name}؟` : `Tell me more about ${name}`,
+                    display,
                 });
             },
             onTransactionSelect: (tx: any) =>
-                sendMessage(`Tell me more about the ${tx.merchantName} transaction`),
+                sendMessage(isAr
+                    ? `وش تفاصيل عملية ${tx.merchantNameAr || tx.merchantName}؟`
+                    : `Tell me more about the ${tx.merchantName} transaction`),
             // Loan handlers
             onLoanOpen: handleLoanOpen,
             onLoanApply: handleLoanApply,

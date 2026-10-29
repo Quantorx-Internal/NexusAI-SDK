@@ -4,7 +4,7 @@ import {
     NativeSyntheticEvent, TextInputKeyPressEventData, I18nManager,
 } from 'react-native';
 import { Mic, ArrowUp } from 'lucide-react-native';
-import { color, composer, radius, border, text, font, iconStroke } from '../../../theme/tokens';
+import { color, composer, radius, border, text, font, iconStroke, face, rtlBase } from '../../../theme/tokens';
 import {
     Suggestion, EntityCandidate, EntityData, matchEntitySlot,
 } from '../../../lib/suggestions';
@@ -183,6 +183,7 @@ export function Composer({
                     </View>
 
                     <ActionButton
+                        isAr={isAr}
                         mode={isLoading ? 'stop' : hasText ? 'send' : 'mic'}
                         disabled={isTranscribing}
                         onPress={() => {
@@ -198,14 +199,21 @@ export function Composer({
 }
 
 /** One circle, three glyphs. */
+const ACTION_LABELS = {
+    en: { mic: 'Speak', send: 'Send', stop: 'Stop' },
+    ar: { mic: 'تحدّث', send: 'إرسال', stop: 'إيقاف' },
+} as const;
+
 function ActionButton({
     mode,
     disabled,
     onPress,
+    isAr,
 }: {
     mode: 'mic' | 'send' | 'stop';
     disabled?: boolean;
     onPress: () => void;
+    isAr?: boolean;
 }) {
     const outlined = mode === 'stop';
     return (
@@ -213,7 +221,7 @@ function ActionButton({
             onPress={onPress}
             disabled={disabled}
             accessibilityRole="button"
-            accessibilityLabel={mode}
+            accessibilityLabel={ACTION_LABELS[isAr ? 'ar' : 'en'][mode]}
             style={({ pressed }) => [
                 styles.action,
                 outlined ? styles.actionOutlined : [styles.actionFilled, { backgroundColor: color.brand[600] }],
@@ -269,12 +277,12 @@ const styles = StyleSheet.create({
     field: { flex: 1, justifyContent: 'center' },
     input: {
         fontSize: composer.textSize,
-        lineHeight: 20,
-        fontWeight: '400',
-        fontFamily: font.family,
+        // 24 for 15pt Zain (1.66 em tall); 20 clipped Arabic descenders.
+        lineHeight: 24,
+        ...face('400'),
         color: color.text.primary,
         maxHeight: 96,
-        paddingVertical: Platform.OS === 'web' ? 8 : 14,
+        paddingVertical: Platform.OS === 'web' ? 8 : 12,
         // Web needs the outline suppressed; the bar itself shows focus.
         ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : null),
     },
@@ -282,11 +290,12 @@ const styles = StyleSheet.create({
     ghost: {
         ...StyleSheet.absoluteFillObject,
         fontSize: composer.textSize,
-        lineHeight: 20,
+        lineHeight: 24,
         fontFamily: font.family,
+        ...rtlBase,
         color: color.brand[300],
         textAlignVertical: 'center',
-        paddingVertical: Platform.OS === 'web' ? 8 : 14,
+        paddingVertical: Platform.OS === 'web' ? 8 : 12,
     },
     ghostTyped: { color: 'transparent' },
     action: {

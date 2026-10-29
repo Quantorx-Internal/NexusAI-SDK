@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, FlatList, Pressable, StyleSheet } from 'react-native';
-import { Sparkles } from 'lucide-react-native';
-import { color, composer, radius, text, iconStroke } from '../../../theme/tokens';
+import { color, composer, radius, text, face } from '../../../theme/tokens';
 import { Suggestion, EntityCandidate } from '../../../lib/suggestions';
 
 /**
@@ -79,6 +78,7 @@ function SuggestionChip({
     return (
         <Pressable
             onPress={onPress}
+            accessibilityRole="button"
             style={({ pressed }) => [
                 styles.chip,
                 suggestion.primary && [styles.chipPrimary, { backgroundColor: color.brand[50], borderColor: color.brand[200] }],
@@ -86,16 +86,12 @@ function SuggestionChip({
                 pressed && styles.chipPressed,
             ]}
         >
-            {suggestion.urgent ? (
-                <View style={styles.urgentDot} />
-            ) : suggestion.primary ? (
-                <Sparkles size={13} color={color.brand[600]} strokeWidth={iconStroke} />
-            ) : null}
+            {/* No leading dot or sparkle: the chip's fill already marks an
+                urgent or a suggested question. */}
             <Text
                 style={text('badge', {
                     fontSize: 13,
-                    lineHeight: 18,
-                    fontWeight: '600',
+                    ...face('600'),
                     color: suggestion.urgent ? color.warning.fgStrong : suggestion.primary ? color.brand[600] : color.text.primary,
                 })}
                 numberOfLines={1}
@@ -116,6 +112,7 @@ function CandidateChip({
     return (
         <Pressable
             onPress={onPress}
+            accessibilityRole="button"
             style={({ pressed }) => [styles.chip, pressed && styles.chipPressed]}
         >
             <View style={styles.avatar}>
@@ -128,8 +125,7 @@ function CandidateChip({
             <Text
                 style={text('badge', {
                     fontSize: 13,
-                    lineHeight: 18,
-                    fontWeight: '600',
+                    ...face('600'),
                 })}
                 numberOfLines={1}
             >
@@ -144,7 +140,7 @@ const styles = StyleSheet.create({
     slotLabel: { paddingLeft: composer.barPadStart },
     row: { gap: composer.chipGap, paddingHorizontal: composer.barPadStart },
     chip: {
-        height: composer.chipHeight,
+        minHeight: composer.chipHeight,
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
@@ -162,7 +158,6 @@ const styles = StyleSheet.create({
         borderColor: color.brand[200],
     },
     chipPressed: { backgroundColor: color.surface3 },
-    urgentDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: color.warning.fg },
     avatar: {
         width: 22,
         height: 22,

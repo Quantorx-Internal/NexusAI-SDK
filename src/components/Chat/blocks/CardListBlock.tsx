@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React from 'react';
 import {
     View, Text, StyleSheet, ScrollView, Pressable,
-    NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native';
 import { Snowflake } from 'lucide-react-native';
 import { SectionHeader, InstrumentSurface, PageDots, InstrumentPalette } from '../../ui';
-import { color, instrument, font, iconStroke, radius } from '../../../theme/tokens';
+import { color, instrument, font, iconStroke, radius, face, rtlBase } from '../../../theme/tokens';
+import { useSnapCarousel } from '../../../hooks/useSnapCarousel';
 import { Card as BankCard } from '../../../types';
 
 /**
@@ -48,26 +48,14 @@ export function CardListBlock({
     selectedId,
     isRTL,
 }: CardListBlockProps) {
-    const [page, setPage] = useState(0);
-
-    const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-        setPage(Math.round(e.nativeEvent.contentOffset.x / STRIDE));
-    }, []);
+    const { page, scrollProps } = useSnapCarousel(cards.length, STRIDE);
 
     if (cards.length === 0) return null;
 
     return (
         <View>
             {title ? <SectionHeader title={title} count={cards.length} /> : null}
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.scroller}
-                snapToInterval={STRIDE}
-                decelerationRate="fast"
-                onScroll={onScroll}
-                scrollEventThrottle={16}
-            >
+            <ScrollView {...scrollProps} contentContainerStyle={styles.scroller}>
                 {cards.map(card => (
                     <CardInstrument
                         key={card.id}
@@ -168,14 +156,14 @@ const styles = StyleSheet.create({
     name: {
         fontSize: 15,
         lineHeight: 20,
-        fontWeight: '700',
-        fontFamily: font.family,
+        ...face('700'),
         color: instrument.onSurfaceStrong,
     },
     type: {
         fontSize: 12,
         lineHeight: 16,
         fontFamily: font.family,
+        ...rtlBase,
         color: instrument.onSurface,
     },
     // Stands in for chip art until the real asset lands.
@@ -186,7 +174,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#D8B36A',
     },
     frozenPill: {
-        height: instrument.pillHeight,
+        minHeight: instrument.pillHeight,
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
@@ -196,14 +184,15 @@ const styles = StyleSheet.create({
     },
     frozenText: {
         fontSize: 11,
-        fontWeight: '600',
-        fontFamily: font.family,
+        ...face('600'),
         color: color.info.fg,
     },
     footer: { marginTop: 'auto', gap: 10 },
     number: {
         fontSize: instrument.numberSize,
-        fontFamily: font.mono,
+        // Zain with tabular figures: the digit groups still line up.
+        fontFamily: font.family,
+        ...rtlBase,
         letterSpacing: instrument.numberTracking,
         color: instrument.onSurfaceStrong,
         fontVariant: ['tabular-nums'],
@@ -219,13 +208,13 @@ const styles = StyleSheet.create({
     expiry: {
         fontSize: 12,
         fontFamily: font.family,
+        ...rtlBase,
         color: instrument.onSurface,
     },
     network: {
         fontSize: 14,
-        fontWeight: '700',
+        ...face('700'),
         fontStyle: 'italic',
-        fontFamily: font.family,
         color: instrument.onSurfaceStrong,
     },
 });

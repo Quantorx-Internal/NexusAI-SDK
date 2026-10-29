@@ -3,9 +3,10 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { ArrowUpRight, ArrowDownLeft } from 'lucide-react-native';
 import { Card, SectionHeader, StatusPill, IconBox, iconOn, RowDivider, EmptyState } from '../../ui';
 import { color, layout, radius, size, text, iconStroke } from '../../../theme/tokens';
-import { formatCurrency, formatTime } from '../../../lib/utils';
+import { formatCurrency, formatSignedCurrency, formatTime, isolateRanges, AR_DATE_LOCALE } from '../../../lib/utils';
 import { Transaction } from '../../../types';
 import { transactionVisual } from './transactionVisuals';
+import { Mirror, useVisualRTL } from '../../../contexts/LayoutDirectionContext';
 
 /**
  * Family D · TransactionList.
@@ -49,7 +50,7 @@ function dayLabel(date: string, locale: 'en' | 'ar'): string {
     if (day === today - dayMs) return isAr ? 'أمس' : 'Yesterday';
 
     try {
-        return new Intl.DateTimeFormat(isAr ? 'ar-SA' : 'en-GB', {
+        return new Intl.DateTimeFormat(isAr ? AR_DATE_LOCALE : 'en-GB', {
             weekday: 'short',
             day: 'numeric',
             month: 'short',
@@ -162,17 +163,16 @@ function TotalBlock({
     tone: 'in' | 'out';
 }) {
     const Icon = tone === 'in' ? ArrowDownLeft : ArrowUpRight;
+    const visualRTL = useVisualRTL();
     return (
         <View style={styles.total}>
             <IconBox
                 box={size.iconBox.sm}
                 tone={tone === 'in' ? 'success' : 'danger'}
             >
-                <Icon
-                    size={size.icon.xs}
-                    color={iconOn(tone === 'in' ? 'success' : 'danger')}
-                    strokeWidth={iconStroke}
-                />
+                <Mirror when={visualRTL}>
+                    <Icon size={size.icon.xs} color={iconOn(tone === 'in' ? 'success' : 'danger')} strokeWidth={iconStroke} />
+                </Mirror>
             </IconBox>
             <View style={styles.totalText}>
                 <Text style={text('caption')} numberOfLines={1}>
@@ -210,7 +210,8 @@ function TransactionRow({
             ? color.success.fg
             : color.text.primary;
 
-    const meta = [formatTime(tx.date, locale), description].filter(Boolean).join(' · ');
+    // Order numbers ("402-1234567") keep their order in Arabic.
+    const meta = isolateRanges([formatTime(tx.date, locale), description].filter(Boolean).join(' · '));
 
     return (
         <Pressable
@@ -252,8 +253,7 @@ function TransactionRow({
                 ]}
                 numberOfLines={1}
             >
-                {isCredit ? '+' : '−'}
-                {formatCurrency(tx.amount, tx.currency, locale)}
+                {formatSignedCurrency(tx.amount, tx.currency, locale, isCredit ? '+' : '−')}
             </Text>
         </Pressable>
     );

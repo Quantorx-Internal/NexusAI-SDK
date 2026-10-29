@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import { View, StyleSheet, FlatList, KeyboardAvoidingView, Platform, Text, TouchableOpacity, I18nManager, Modal, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Volume2, VolumeX, Globe, Sparkles, Plus, BrainCircuit, Check, ChevronDown } from 'lucide-react-native';
+import { Volume2, VolumeX, Globe, Plus, BrainCircuit, Check, ChevronDown } from 'lucide-react-native';
 import { ChatMessage } from '../components/Chat/ChatMessage';
 import { Composer } from '../components/Chat/Composer';
 import { ComposerPrompt } from '../components/Chat/ComposerPrompt';
@@ -13,7 +13,7 @@ import { useSpeech } from '../hooks/useSpeech';
 import { useLocale } from '../contexts/LocaleContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { assistantName } from '../theme/theme';
-import { preferences as pref } from '../theme/tokens';
+import { preferences as pref, face } from '../theme/tokens';
 import { PreferencesScreen } from './PreferencesScreen';
 import { BankSnapshotService, BankSnapshot } from '../services/BankSnapshotService';
 import { computeSuggestions } from '../lib/suggestions';
@@ -21,6 +21,7 @@ import { mockSubscriptions } from '../data/subscriptions';
 import { AGENT_VOICES, AgentVoice, AgentVoiceId, getAgentVoice } from '../config/agentVoices';
 import { color } from '../theme/tokens';
 import { ENV } from '../config/constants';
+import { rtlText } from '../contexts/LayoutDirectionContext';
 
 const AGENT_VOICE_STORAGE_KEY = '@ai_assistant_agent_voice';
 
@@ -415,7 +416,6 @@ export function ChatScreen() {
                     </Pressable>
                     <View style={[styles.titleRow, isLayoutRTL && styles.titleRowRTL]}>
                         <Text style={dynamicStyles.headerTitle} numberOfLines={1}>{assistantName(theme, locale)}</Text>
-                        <Sparkles size={14} color={color.brand[600]} style={styles.titleIcon} />
                     </View>
                 </View>
 
@@ -425,6 +425,9 @@ export function ChatScreen() {
                     <TouchableOpacity
                         style={styles.headerIconButton}
                         onPress={handleNewSession}
+                        hitSlop={HEADER_HIT_SLOP}
+                        accessibilityRole="button"
+                        accessibilityLabel={locale === 'ar' ? 'محادثة جديدة' : 'New chat'}
                     >
                         <Plus size={20} color="#111827" />
                     </TouchableOpacity>
@@ -435,6 +438,8 @@ export function ChatScreen() {
                             onPress={() => setIsVoicePickerOpen(true)}
                             activeOpacity={0.72}
                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            accessibilityRole="button"
+                            accessibilityLabel={`الصوت: ${selectedVoice.nameAr}`}
                         >
                             <Text style={[styles.voiceButtonText, { color: color.brand[600] }]}>{selectedVoice.nameAr}</Text>
                             <ChevronDown size={16} color={color.brand[600]} />
@@ -445,6 +450,10 @@ export function ChatScreen() {
                     <TouchableOpacity
                         style={[styles.headerIconButton, autoSpeak && [styles.autoSpeakButtonActive, { backgroundColor: color.brand[50] }]]}
                         onPress={toggleAutoSpeak}
+                        hitSlop={HEADER_HIT_SLOP}
+                        accessibilityRole="switch"
+                        accessibilityState={{ checked: autoSpeak }}
+                        accessibilityLabel={locale === 'ar' ? 'قراءة الردود بصوت' : 'Read replies aloud'}
                     >
                         {autoSpeak ? (
                             <Volume2 size={20} color={color.brand[600]} />
@@ -457,6 +466,9 @@ export function ChatScreen() {
                     <TouchableOpacity
                         style={[styles.headerIconButton, isLayoutRTL && styles.headerButtonRTL]}
                         onPress={toggleLanguage}
+                        hitSlop={HEADER_HIT_SLOP}
+                        accessibilityRole="button"
+                        accessibilityLabel={locale === 'en' ? 'العربية' : 'English'}
                     >
                         <Globe size={18} color={color.brand[600]} />
                         <Text style={[styles.languageText, { color: color.brand[600] }]}>{locale === 'en' ? 'AR' : 'EN'}</Text>
@@ -472,7 +484,7 @@ export function ChatScreen() {
             >
                 <Pressable style={styles.modalBackdrop} onPress={() => setIsVoicePickerOpen(false)}>
                     <Pressable style={styles.voiceSheet}>
-                        <Text style={[styles.voiceSheetTitle, isRTL && styles.textRTL]}>
+                        <Text style={[styles.voiceSheetTitle, rtlText(isRTL)]}>
                             {locale === 'ar' ? 'اختر صوت المساعد' : 'Select agent voice'}
                         </Text>
                         {availableVoices.map((voice) => {
@@ -482,15 +494,16 @@ export function ChatScreen() {
                                     key={voice.id}
                                     style={[styles.voiceOption, isSelected && [styles.voiceOptionSelected, { backgroundColor: color.brand[50] }], isLayoutRTL && styles.voiceOptionRTL]}
                                     onPress={() => handleVoiceSelect(voice)}
+                                    accessibilityRole="radio"
+                                    accessibilityState={{ selected: isSelected }}
                                 >
-                                    <View style={[styles.voiceOptionAvatar, { backgroundColor: color.brand[50] }, isSelected && [styles.voiceOptionAvatarSelected, { backgroundColor: color.brand[600] }]]}>
-                                        <BrainCircuit size={18} color={isSelected ? '#fff' : color.brand[600]} />
-                                    </View>
+                                    {/* No avatar per row: the same assistant mark three
+                                        times named nothing. The name and the tick do. */}
                                     <View style={styles.voiceOptionTextWrap}>
-                                        <Text style={[styles.voiceOptionName, isRTL && styles.textRTL]}>
+                                        <Text style={[styles.voiceOptionName, rtlText(isRTL)]}>
                                             {locale === 'ar' ? voice.nameAr : voice.name}
                                         </Text>
-                                        <Text style={[styles.voiceOptionMeta, isRTL && styles.textRTL]}>
+                                        <Text style={[styles.voiceOptionMeta, rtlText(isRTL)]}>
                                             {voice.sex === 'female'
                                                 ? (locale === 'ar' ? 'صوت نسائي' : 'Female voice')
                                                 : (locale === 'ar' ? 'صوت رجالي' : 'Male voice')}
@@ -539,6 +552,8 @@ export function ChatScreen() {
                         )}
                         contentContainerStyle={dynamicStyles.listContent}
                         keyboardShouldPersistTaps="handled"
+                        // Drag the chat down to put the keyboard away, as in Messages.
+                        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
                         ListFooterComponent={
                             <TypingIndicator
                                 isVisible={isLoading}
@@ -580,10 +595,16 @@ export function ChatScreen() {
     );
 }
 
+// The header icons draw at 36pt; the slop takes each touch area to Apple's
+// 44pt without widening the bar and squeezing the title.
+const HEADER_HIT_SLOP = { top: 4, bottom: 4, left: 4, right: 4 };
+
 const styles = StyleSheet.create({
+    // White behind the status bar and the home indicator, so the header and
+    // the composer run into the screen edges; the grey sits behind the chat.
     container: {
         flex: 1,
-        backgroundColor: '#FAFAFA',
+        backgroundColor: color.bg,
     },
     header: {
         flexDirection: 'row',
@@ -602,6 +623,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
+        // The title gives way before the controls do: without this the Arabic
+        // header pushed EN against the screen edge.
+        flexShrink: 1,
     },
     headerLeftSectionRTL: {
         flexDirection: 'row-reverse',
@@ -618,23 +642,19 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
+        flexShrink: 1,
     },
     titleRowRTL: {
         flexDirection: 'row-reverse',
     },
     headerTitle: {
         fontSize: 15,
-        fontWeight: '600',
-        color: '#111',
+        ...face('600'),
+        color: color.text.primary,
+        flexShrink: 1,
     },
     headerTitleRTL: {
         // Arabic font styling if needed
-    },
-    titleIcon: {
-        marginTop: 1,
-    },
-    textRTL: {
-        textAlign: 'right',
     },
     headerRightSection: {
         flexDirection: 'row',
@@ -647,8 +667,11 @@ const styles = StyleSheet.create({
     headerIconButton: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: 36,
+        minHeight: 36,
         padding: 8,
-        borderRadius: 20,
+        borderRadius: 18,
         gap: 3,
     },
     headerButtonRTL: {
@@ -672,12 +695,12 @@ const styles = StyleSheet.create({
     },
     voiceButtonText: {
         fontSize: 12,
-        fontWeight: '700',
+        ...face('700'),
         color: '#4F008D',
     },
     languageText: {
         fontSize: 11,
-        fontWeight: '600',
+        ...face('600'),
         color: '#4F008D',
     },
     modalBackdrop: {
@@ -701,7 +724,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 4,
         paddingBottom: 8,
         fontSize: 16,
-        fontWeight: '700',
+        ...face('700'),
         color: '#111827',
     },
     voiceOption: {
@@ -718,23 +741,12 @@ const styles = StyleSheet.create({
     voiceOptionSelected: {
         backgroundColor: 'rgba(79, 0, 141, 0.08)',
     },
-    voiceOptionAvatar: {
-        width: 34,
-        height: 34,
-        borderRadius: 17,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(79, 0, 141, 0.1)',
-    },
-    voiceOptionAvatarSelected: {
-        backgroundColor: '#4F008D',
-    },
     voiceOptionTextWrap: {
         flex: 1,
     },
     voiceOptionName: {
         fontSize: 15,
-        fontWeight: '700',
+        ...face('700'),
         color: '#111827',
     },
     voiceOptionMeta: {
@@ -744,6 +756,7 @@ const styles = StyleSheet.create({
     },
     keyboardView: {
         flex: 1,
+        backgroundColor: '#FAFAFA',
     },
     listContent: {
         padding: 16,

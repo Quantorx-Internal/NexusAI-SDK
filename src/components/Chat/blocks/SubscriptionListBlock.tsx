@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Card, SectionHeader, StatusPill, RowDivider } from '../../ui';
-import { color, layout, radius, size, text } from '../../../theme/tokens';
+import { color, layout, radius, size, text, face } from '../../../theme/tokens';
 import { formatCurrency, formatDateShort, initials } from '../../../lib/utils';
 import { Subscription } from '../../../types';
 
@@ -72,11 +72,11 @@ export function SubscriptionListBlock({ subscriptions, locale = 'en' }: Subscrip
                         <React.Fragment key={subscription.id}>
                             {index > 0 && <RowDivider />}
                             <View style={styles.row}>
-                                <View style={[styles.avatar, { backgroundColor: color.brand[50] }, dimmed && styles.avatarDim]}>
+                                <View style={[styles.avatar, dimmed && styles.avatarDim]}>
                                     <Text
                                         style={text('rowLabel', {
-                                            fontWeight: '700',
-                                            color: dimmed ? color.text.tertiary : color.brand[600],
+                                            ...face('700'),
+                                            color: dimmed ? color.text.tertiary : color.text.primary,
                                         })}
                                     >
                                         {initials(subscription.merchantName || name).charAt(0)}
@@ -105,7 +105,7 @@ export function SubscriptionListBlock({ subscriptions, locale = 'en' }: Subscrip
                                     <Text
                                         style={[
                                             text('rowValue', {
-                                                fontWeight: '700',
+                                                ...face('700'),
                                                 color: dimmed
                                                     ? color.text.tertiary
                                                     : color.text.primary,
@@ -148,7 +148,10 @@ const styles = StyleSheet.create({
         width: size.iconBox.md,
         height: size.iconBox.md,
         borderRadius: radius.iconSquare,
-        backgroundColor: color.brand[50],
+        // The quiet well every list icon uses (see IconBox).
+        backgroundColor: color.surface2,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: color.border,
         alignItems: 'center',
         justifyContent: 'center',
     },
