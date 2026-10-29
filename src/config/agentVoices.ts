@@ -19,10 +19,10 @@ export const AGENT_VOICES: AgentVoice[] = [
     {
         id: 'alaa-omni',
         name: 'Alaa',
-        nameAr: 'آلاء',
-        sex: 'female',
-        omnivoiceInstruct: 'female, young adult, moderate pitch',
-        voxcpmInstruct: 'A Saudi woman speaking the Najdi dialect. A warm, friendly, calm tone.',
+        nameAr: 'علاء',
+        sex: 'male',
+        omnivoiceInstruct: 'male, young adult, moderate pitch',
+        voxcpmInstruct: 'A Saudi man speaking the Najdi dialect. A warm, friendly, calm tone.',
     },
     {
         id: 'noura-omni',

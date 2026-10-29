@@ -15,15 +15,12 @@ import { useTheme } from '../contexts/ThemeContext';
 import { assistantName } from '../theme/theme';
 import { preferences as pref } from '../theme/tokens';
 import { PreferencesScreen } from './PreferencesScreen';
+import { BankSnapshotService, BankSnapshot } from '../services/BankSnapshotService';
 import { computeSuggestions } from '../lib/suggestions';
-import { mockAccounts } from '../data/accounts';
-import { mockBeneficiaries } from '../data/beneficiaries';
 import { mockSubscriptions } from '../data/subscriptions';
-import { mockBills } from '../data/bills';
-import { mockCards } from '../data/cards';
-import { mockSpendingBreakdown } from '../data/spending';
 import { AGENT_VOICES, AgentVoice, AgentVoiceId, getAgentVoice } from '../config/agentVoices';
 import { color } from '../theme/tokens';
+import { ENV } from '../config/constants';
 
 const AGENT_VOICE_STORAGE_KEY = '@ai_assistant_agent_voice';
 
@@ -31,8 +28,9 @@ export function ChatScreen() {
     const { locale, setLocale, isRTL } = useLocale();
     const { theme, version: themeVersion, preferencesOpened, markPreferencesOpened } = useTheme();
     const [showPreferences, setShowPreferences] = React.useState(false);
-    const { messages, isLoading, isTranscribing, sendMessage, handlers, isRecording, level, silenceProgress, startRecording, stopRecording, cancelRecording, resetChat } = useChatViewModel({ locale });
+    const { messages, sessionId, isLoading, isTranscribing, sendMessage, handlers, isRecording, level, silenceProgress, startRecording, stopRecording, cancelRecording, resetChat } = useChatViewModel({ locale });
     const flatListRef = useRef<FlatList>(null);
+    const [availableVoices, setAvailableVoices] = React.useState(AGENT_VOICES.filter(v => v.id !== 'sara-omni'));
     const [selectedVoiceId, setSelectedVoiceId] = React.useState<AgentVoiceId>('alaa-omni');
     const selectedVoice = useMemo(() => getAgentVoice(selectedVoiceId), [selectedVoiceId]);
     const { speak, stop, toggle, isSpeaking, isLoading: isLoadingSpeech, currentMessageId } = useSpeech({ language: locale, agentVoiceId: selectedVoiceId });
@@ -44,34 +42,67 @@ export function ChatScreen() {
     const hasSpokenWelcomeRef = useRef(false);
 
     useEffect(() => {
-        AsyncStorage.getItem(AGENT_VOICE_STORAGE_KEY)
-            .then((savedVoiceId) => {
-                const savedVoice = getAgentVoice(savedVoiceId || undefined);
-                setSelectedVoiceId(savedVoice.id);
+        let cancelled = false;
+        const controller = new AbortController();
+        const root = ENV.API_CALLBACK_URL?.replace(/\/+$/, '').replace(/\/api$/i, '');
+        Promise.all([
+            AsyncStorage.getItem(AGENT_VOICE_STORAGE_KEY),
+            root ? fetch(`${root}/api/tts`, { signal: controller.signal }).then(async response => {
+                if (!response.ok) throw new Error('Voice catalogue unavailable');
+                return response.json();
+            }) : Promise.reject(new Error('Speech API is not configured')),
+        ]).then(([savedVoiceId, catalogue]) => {
+            if (cancelled) return;
+            const available = AGENT_VOICES.filter(voice => catalogue.voices?.some((v: { id: string }) => v.id === voice.id));
+            setAvailableVoices(available);
+            // Never show Sara while playing another person's fallback preset.
+            const selected = available.find(v => v.id === savedVoiceId) ?? available[0];
+            if (selected) setSelectedVoiceId(selected.id);
+        }).catch(error => {
+            if (!cancelled) console.warn('Failed to load voice catalogue:', error);
+        });
+        return () => { cancelled = true; controller.abort(); };
+    }, []);
+
+    /**
+     * The customer's banking snapshot, from the server, per chat session: the
+     * welcome summary, the chips and the composer's completions all read it,
+     * so what the assistant says before the user asks is what its tools
+     * would answer. A new session fetches again, since the server draws the
+     * month's figures per session.
+     */
+    const [snapshot, setSnapshot] = React.useState<BankSnapshot | null>(null);
+    const [snapshotLoading, setSnapshotLoading] = React.useState(true);
+    useEffect(() => {
+        let cancelled = false;
+        const controller = new AbortController();
+        setSnapshotLoading(true);
+        BankSnapshotService.fetch(sessionId, controller.signal)
+            .then(result => {
+                if (cancelled) return;
+                setSnapshot(result);
             })
-            .catch((error) => console.warn('Failed to load selected agent voice:', error));
-    }, []);
-
-    // Compute welcome summary from mock data
-    const welcomeSummary = useMemo<WelcomeSummary>(() => {
-        const totalBalance = mockAccounts.reduce((sum, acc) => sum + acc.balance, 0);
-        const monthlySpending = mockSpendingBreakdown.reduce((sum, item) => sum + item.amount, 0);
-        const pendingBills = mockBills.filter(b => b.status === 'pending' || b.status === 'overdue');
-        const pendingBillsAmount = pendingBills.reduce((sum, b) => sum + b.amount, 0);
-        const activeCards = mockCards.filter(c => c.status === 'active').length;
-
-        return {
-            totalBalance,
-            monthlySpending,
-            pendingBills: { count: pendingBills.length, amount: pendingBillsAmount },
-            activeCards,
+            .catch(error => {
+                if (!cancelled) console.warn('Failed to load the banking snapshot:', error);
+            })
+            .finally(() => {
+                if (!cancelled) setSnapshotLoading(false);
+            });
+        return () => {
+            cancelled = true;
+            controller.abort();
         };
-    }, []);
+    }, [sessionId]);
+
+    const welcomeSummary = useMemo<WelcomeSummary | null>(
+        () => (snapshot ? BankSnapshotService.welcomeSummary(snapshot) : null),
+        [snapshot]
+    );
 
     const getWelcomeSpeechText = useCallback(() => {
         const clientName = locale === 'ar' ? 'محمد' : 'Mohammed';
         const greeting = locale === 'ar' ? `هلا ${clientName}` : `Hello, ${clientName}!`;
-        const subGreeting = locale === 'ar' ? 'كيف اقدر افيدك اليوم ؟' : 'How can I help you today?';
+        const subGreeting = locale === 'ar' ? 'كيف أقدر أفيدك؟' : 'How can I help you today?';
         return `${greeting} ${subGreeting}`;
     }, [locale]);
 
@@ -133,6 +164,7 @@ export function ChatScreen() {
         // Only speak if it's a new assistant message
         if (
             lastMessage.role === 'assistant' &&
+            lastMessage.speech &&
             lastMessage.id !== lastMessageIdRef.current
         ) {
             lastMessageIdRef.current = lastMessage.id;
@@ -146,7 +178,7 @@ export function ChatScreen() {
             // Small delay to ensure the message is rendered
             speechTimeoutRef.current = setTimeout(() => {
                 speechTimeoutRef.current = null;
-                speak(lastMessage.content, lastMessage.id);
+                speak('', lastMessage.id, { speech: lastMessage.speech });
             }, 500);
         }
     }, [messages, autoSpeak, speak, stop, cancelPendingSpeech]);
@@ -173,7 +205,8 @@ export function ChatScreen() {
                 lastMessageIdRef.current = latestMessage.id;
             }
             setAutoSpeak(true);
-            speak(text, messageId);
+            const reply = messages.find(message => message.id === messageId);
+            if (reply?.speech) speak('', messageId, { speech: reply.speech });
         }
     }, [currentMessageId, isSpeaking, isLoadingSpeech, messages, stopAllSpeech, speak]);
 
@@ -261,24 +294,26 @@ export function ChatScreen() {
     const suggestions = useMemo(
         () =>
             computeSuggestions({
-                accounts: mockAccounts,
-                bills: mockBills,
-                cards: mockCards,
+                accounts: snapshot?.accounts ?? [],
+                bills: snapshot?.bills ?? [],
+                cards: snapshot?.cards ?? [],
                 locale,
                 exclude: messages.filter(m => m.role === 'user').map(m => m.content),
+                // The welcome screen keeps the overdue bill as the lead and adds one insight question.
+                promote: messages.length === 0 ? 'insight' : undefined,
             }),
-        [messages, locale]
+        [messages, locale, snapshot]
     );
 
     /** Entity candidates the composer completes against while typing. */
     const entityData = useMemo(
         () => ({
-            beneficiaries: mockBeneficiaries,
-            accounts: mockAccounts,
-            cards: mockCards,
-            bills: mockBills,
+            beneficiaries: snapshot?.beneficiaries ?? [],
+            accounts: snapshot?.accounts ?? [],
+            cards: snapshot?.cards ?? [],
+            bills: snapshot?.bills ?? [],
         }),
-        []
+        [snapshot]
     );
 
     /**
@@ -440,7 +475,7 @@ export function ChatScreen() {
                         <Text style={[styles.voiceSheetTitle, isRTL && styles.textRTL]}>
                             {locale === 'ar' ? 'اختر صوت المساعد' : 'Select agent voice'}
                         </Text>
-                        {AGENT_VOICES.map((voice) => {
+                        {availableVoices.map((voice) => {
                             const isSelected = voice.id === selectedVoiceId;
                             return (
                                 <TouchableOpacity
@@ -477,6 +512,7 @@ export function ChatScreen() {
                 {showWelcome ? (
                     <WelcomeView
                         summary={welcomeSummary}
+                        loading={snapshotLoading}
                         locale={locale}
                         isRTL={isRTL}
                         onQuickAction={handleSend}

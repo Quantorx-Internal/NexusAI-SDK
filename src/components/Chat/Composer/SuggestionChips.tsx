@@ -82,18 +82,21 @@ function SuggestionChip({
             style={({ pressed }) => [
                 styles.chip,
                 suggestion.primary && [styles.chipPrimary, { backgroundColor: color.brand[50], borderColor: color.brand[200] }],
+                suggestion.urgent && { backgroundColor: color.warning.bg, borderColor: color.warning.border },
                 pressed && styles.chipPressed,
             ]}
         >
-            {suggestion.primary && (
+            {suggestion.urgent ? (
+                <View style={styles.urgentDot} />
+            ) : suggestion.primary ? (
                 <Sparkles size={13} color={color.brand[600]} strokeWidth={iconStroke} />
-            )}
+            ) : null}
             <Text
                 style={text('badge', {
                     fontSize: 13,
                     lineHeight: 18,
                     fontWeight: '600',
-                    color: suggestion.primary ? color.brand[600] : color.text.primary,
+                    color: suggestion.urgent ? color.warning.fgStrong : suggestion.primary ? color.brand[600] : color.text.primary,
                 })}
                 numberOfLines={1}
             >
@@ -159,6 +162,7 @@ const styles = StyleSheet.create({
         borderColor: color.brand[200],
     },
     chipPressed: { backgroundColor: color.surface3 },
+    urgentDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: color.warning.fg },
     avatar: {
         width: 22,
         height: 22,

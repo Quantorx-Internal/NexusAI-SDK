@@ -48,7 +48,7 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean {
 
 const ttsVoiceId = runtimeEnvironment.TTS_VOICE_ID
     || process.env.EXPO_PUBLIC_TTS_VOICE_ID
-    || 'omnivoice';
+    || 'alaa-omni';
 
 export const ENV = {
     // API configuration
@@ -58,14 +58,14 @@ export const ENV = {
     // A physical device cannot resolve a development server bound to the
     // developer's LAN/localhost. Prefer an explicitly configured public
     // callback (the tunnel) and retain the local API URL as the fallback.
-    API_CALLBACK_URL: isDevelopmentBuild
-        ? runtimeEnvironment.EXPO_PUBLIC_API_CALLBACK_URL
-            || process.env.EXPO_PUBLIC_API_CALLBACK_URL
-            || runtimeEnvironment.NGROK_URL
+    API_CALLBACK_URL: runtimeEnvironment.EXPO_PUBLIC_API_CALLBACK_URL
+        || process.env.EXPO_PUBLIC_API_CALLBACK_URL
+        || (isDevelopmentBuild
+        ? runtimeEnvironment.NGROK_URL
             || process.env.EXPO_PUBLIC_NGROK_URL
             || runtimeEnvironment.NEXT_PUBLIC_API_URL
             || process.env.EXPO_PUBLIC_API_URL
-        : PRODUCTION_API_CALLBACK_URL,
+        : PRODUCTION_API_CALLBACK_URL),
 
     // Speech to text
     OPENAI_API_KEY: process.env.EXPO_PUBLIC_OPENAI_API_KEY,
@@ -135,14 +135,13 @@ export const ENV = {
     /**
      * Who answers the chat. 'api' (default): POST {API_CALLBACK_URL}/api/chat,
      * the in-app agent with the loan tools and per-session memory. 'n8n': the
-     * old workflow at N8N_WEBHOOK_URL. Whichever is chosen but unreachable
-     * falls back to the other, then to the built-in mock flows.
+     * old workflow at N8N_WEBHOOK_URL. Use 'mock' explicitly for the offline demo. Live failures are reported to the user.
      */
     CHAT_AGENT: (
         runtimeEnvironment.CHAT_AGENT
         || process.env.EXPO_PUBLIC_CHAT_AGENT
         || 'api'
-    ) as 'api' | 'n8n',
+    ) as 'api' | 'n8n' | 'mock',
 
     MOCK_OTP: runtimeEnvironment.MOCK_OTP || process.env.EXPO_PUBLIC_MOCK_OTP,
     MOCK_DELAY_MS: Number(runtimeEnvironment.MOCK_DELAY_MS || process.env.EXPO_PUBLIC_MOCK_DELAY_MS || 0),

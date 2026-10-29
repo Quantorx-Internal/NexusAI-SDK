@@ -16,6 +16,8 @@ export interface Suggestion {
     message: string;
     /** The computed lead chip, rendered with the sparkle. */
     primary?: boolean;
+    /** Something that costs the user to ignore (an overdue bill): amber, with a dot, no sparkle. */
+    urgent?: boolean;
 }
 
 export interface SuggestionContext {
@@ -25,6 +27,8 @@ export interface SuggestionContext {
     locale?: 'en' | 'ar';
     /** Messages already sent — a chip never repeats the last answer. */
     exclude?: string[];
+    /** What the welcome screen's chip slot promotes beside the lead: loans, or an insight question. */
+    promote?: 'loans' | 'insight';
 }
 
 /** Below this, "low balance" is worth surfacing unprompted. */
@@ -42,6 +46,15 @@ const isOverdue = (bill: Bill) =>
 function leadSuggestion(ctx: SuggestionContext): Suggestion | null {
     const isAr = ctx.locale === 'ar';
 
+    if (ctx.promote === 'loans') {
+        return {
+            id: 'lead-loans',
+            label: isAr ? 'كم أقدر آخذ تمويل؟' : 'How much financing can I get?',
+            message: isAr ? 'ايش التمويلات اللي اقدر اقدم عليها؟' : 'Which loans can I apply for?',
+            primary: true,
+        };
+    }
+
     const overdue = (ctx.bills || []).filter(isOverdue);
     if (overdue.length > 0) {
         // Largest overdue bill — the most expensive thing to keep ignoring.
@@ -52,6 +65,7 @@ function leadSuggestion(ctx: SuggestionContext): Suggestion | null {
             label: isAr ? `ادفع فاتورة ${provider} المتأخرة` : `Pay the overdue ${provider} bill`,
             message: isAr ? `ادفع فاتورة ${provider}` : `Pay my ${provider} bill`,
             primary: true,
+            urgent: true,
         };
     }
 
@@ -90,14 +104,14 @@ function standingIntents(locale: 'en' | 'ar'): Suggestion[] {
             message: isAr ? 'اعرض رصيدي' : 'Show my balance',
         },
         {
-            id: 'intent-spending',
-            label: isAr ? 'مصاريفي' : 'My spending',
-            message: isAr ? 'اعرض مصاريفي' : 'Show me my spending',
+            id: 'intent-goals',
+            label: isAr ? 'أهداف الادخار' : 'Savings goals',
+            message: isAr ? 'أبي أحدد هدف ادخار' : 'I want to set a savings goal',
         },
         {
-            id: 'intent-loans',
-            label: isAr ? 'تمويل يناسبني' : 'Loans for me',
-            message: isAr ? 'ايش التمويلات اللي اقدر اقدم عليها؟' : 'Which loans can I apply for?',
+            id: 'intent-savings',
+            label: isAr ? 'ادخار يناسبني' : 'Savings for me',
+            message: isAr ? 'وش خطط الادخار اللي تناسبني؟' : 'Which savings plans suit me?',
         },
         {
             id: 'intent-activity',
@@ -123,12 +137,27 @@ export function computeSuggestions(ctx: SuggestionContext): Suggestion[] {
     const used = new Set(exclude);
 
     const lead = leadSuggestion({ ...ctx, locale });
-    const rest = standingIntents(locale).filter(s => !used.has(s.message.toLowerCase()));
+    // The welcome screen adds one question the assistant can answer from the month's data.
+    const isAr = locale === 'ar';
+    const insight: Suggestion | null = ctx.promote === 'insight'
+        ? {
+            id: 'insight-top-spend',
+            label: isAr ? 'وش أكثر شي صرفت عليه؟' : 'What did I spend most on?',
+            message: isAr ? 'وش أكثر شي صرفت عليه هالشهر؟' : 'What did I spend most on this month?',
+            primary: true,
+        }
+        : null;
+    const taken = new Set([lead?.message, insight?.message].filter(Boolean).map(m => String(m).toLowerCase()));
+    // A standing chip never repeats a computed one: the same message twice in one row.
+    const rest = standingIntents(locale).filter(
+        s => !used.has(s.message.toLowerCase()) && !taken.has(s.message.toLowerCase())
+    );
 
     const out: Suggestion[] = [];
     if (lead && !used.has(lead.message.toLowerCase())) out.push(lead);
-    // One computed chip plus three standing ones.
-    out.push(...rest.slice(0, lead ? 3 : 4));
+    if (insight && !used.has(insight.message.toLowerCase())) out.push(insight);
+    // Computed chips plus standing ones, four in all.
+    out.push(...rest.slice(0, Math.max(0, 4 - out.length)));
     return out;
 }
 

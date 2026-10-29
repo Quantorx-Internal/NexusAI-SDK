@@ -55,10 +55,6 @@ export function ChatMessage({
     message,
     accounts: fallbackAccounts = [],
     beneficiaries: fallbackBeneficiaries = [],
-    cards: fallbackCards = [],
-    bills: fallbackBills = [],
-    spendingBreakdown: fallbackSpendingBreakdown = [],
-    subscriptions: fallbackSubscriptions = [],
     onAction,
     onAccountSelect,
     onBeneficiarySelect,
@@ -104,10 +100,10 @@ export function ChatMessage({
     const accounts = shouldShowAccounts ? message.accounts! : [];
     const beneficiaries = shouldShowBeneficiaries ? message.beneficiaries! : [];
     // Use message data first, then fall back to props
-    const cards = shouldShowCards ? message.cards! : (ui?.showCards ? fallbackCards : []);
-    const bills = shouldShowBills ? message.bills! : (ui?.showBills ? fallbackBills : []);
-    const spendingBreakdown = shouldShowSpendingBreakdown ? message.spendingBreakdown! : (ui?.showSpendingBreakdown ? fallbackSpendingBreakdown : []);
-    const subscriptions = shouldShowSubscriptions ? message.subscriptions! : (ui?.showSubscriptions ? fallbackSubscriptions : []);
+    const cards = shouldShowCards ? message.cards! : [];
+    const bills = shouldShowBills ? message.bills! : [];
+    const spendingBreakdown = shouldShowSpendingBreakdown ? message.spendingBreakdown! : [];
+    const subscriptions = shouldShowSubscriptions ? message.subscriptions! : [];
 
     // Get transfer preview and success from UI or legacy field
     const transferPreview = ui?.transferPreview || message.transferPreview;
@@ -252,6 +248,11 @@ export function ChatMessage({
                     </View>
                 ) : (
                     <>
+                        {!!message.dataUnavailable?.length && (
+                            <Text accessibilityRole="alert">
+                                {locale === 'ar' ? 'تعذر تحميل بيانات البطاقة. حاول مرة أخرى.' : 'Card data could not be loaded. Please try again.'}
+                            </Text>
+                        )}
                         <SimpleMarkdownRenderer
                             content={message.content}
                             transferPreview={transferPreview || undefined}
@@ -262,6 +263,7 @@ export function ChatMessage({
                             cardPreview={cardPreview || undefined}
                             cardActionSuccess={cardActionSuccess || undefined}
                             spendingBreakdown={spendingBreakdown}
+                            spendingSummary={message.spendingSummary}
                             spendingInsights={spendingInsights || undefined}
                             subscriptions={subscriptions}
                             bills={bills}

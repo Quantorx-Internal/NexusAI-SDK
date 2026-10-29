@@ -168,3 +168,23 @@ npm start -- --clear
 ## License
 
 MIT © AI Assistant SDK
+
+## Live chat and speech
+
+Set `EXPO_PUBLIC_API_CALLBACK_URL` to the backend origin. This explicit callback also applies to release builds. Without it, release builds keep the existing production default.
+
+Live chat uses the configured backend only. Set `EXPO_PUBLIC_CHAT_AGENT=mock` explicitly for offline demos. A failed API request displays a connection error; it cannot become a simulated payment or fabricated spending response.
+
+Spending replies must include `spendingBreakdown` and `spendingSummary`, or the combined `ui.spending` snapshot. The snapshot includes the requested period, localized labels, total and category rows. Missing rows display a data-unavailable notice, never randomized figures. Deploy the matching backend update before releasing this SDK.
+
+Speech uses the backend's `/api/tts/stream` endpoint for both languages, with the selected `voiceId`. Voice references, speed, rewriting and audio normalization now come from the same server pipeline as web. Mobile no longer calls RunPod or legacy English TTS providers directly. The picker filters its existing voice choices against `/api/tts`; a voice without a server preset is unavailable rather than silently playing a different voice.
+
+`SpeechSynthesisBatch.jobs` is now an async iterable. Consumers must use `for await (const chunk of batch.jobs)`. The bundled hooks are updated. The legacy `engine` and `speakerSex` options no longer override a voice's server preset.
+
+Regression checks require Bun: `bun test tests`. Also run `npx tsc --noEmit` and `npm run build`. Native device playback still needs a listening check with the same voice selected on mobile and web.
+
+### Server-owned chat speech
+
+The backend returns a `speech` reference with each chat reply. Automatic playback and replay pass that reference to `/api/tts/reply?stream=1`, plus the voice preference. They do not send the message text, client card data, or UI locale again. Deploy the backend reference support before this SDK update. Replies without a server reference cannot use chat playback; standalone greeting and voice previews still use the text preview API.
+
+The backend LLM selects English, Arabic, or mixed narration. Mixed text uses the Arabic-capable voice and preserves English passages. The SDK no longer counts characters to guess a language. Recording transcription uses automatic language recognition so an English UI does not suppress Arabic in mixed speech. SDK callers can still pass an explicit transcription language when needed.

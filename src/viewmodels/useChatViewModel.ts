@@ -55,6 +55,8 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
     const [isLoading, setIsLoading] = useState(false);
     const [isTranscribing, setIsTranscribing] = useState(false);
     const [sessionId, setSessionId] = useState(() => `session-${Date.now()}`);
+    const activeSessionRef = useRef(sessionId);
+    activeSessionRef.current = sessionId;
     const prevLocaleRef = useRef(locale);
     const instanceIdRef = useRef(`chat-${++instanceCounter}`);
     const isDisposedRef = useRef(false);
@@ -252,6 +254,9 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
      */
     const lastLoanApplyRef = useRef<{ messageId: string; productId: string; loan: { amount: number; months: number } } | null>(null);
 
+    const sendingRef = useRef(false);
+    const messageSequenceRef = useRef(0);
+
     const sendMessage = useCallback(async (
         content: string,
         options: SendMessageOptions & { display?: string } = {}
@@ -262,8 +267,11 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
             return null;
         }
 
+        if (sendingRef.current) return null;
+        sendingRef.current = true;
+        const turnId = `${Date.now()}-${++messageSequenceRef.current}`;
         const userMsg: ChatMessage = {
-            id: Date.now().toString(),
+            id: `${turnId}-user`,
             role: 'user',
             content,
             timestamp: new Date().toISOString(),
@@ -282,14 +290,15 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
             const response = await ChatService.sendMessage(content, sessionId, locale, { event: options.event, note });
 
             // Check if disposed while waiting for response
-            if (isDisposedRef.current) {
+            if (isDisposedRef.current || activeSessionRef.current !== sessionId) {
                 console.log(`[useChatViewModel:${instanceIdRef.current}] Response received but instance disposed`);
                 return null;
             }
 
             const botMsg: ChatMessage = {
-                id: (Date.now() + 1).toString(),
+                id: `${turnId}-assistant`,
                 role: 'assistant',
+                speech: response.speech,
                 content: response.message || response.response || "I'm not sure how to respond to that.",
                 timestamp: new Date().toISOString(),
                 ui: response.ui,
@@ -300,6 +309,8 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
                 cards: response.cards,
                 bills: response.bills,
                 spendingBreakdown: response.spendingBreakdown,
+                spendingSummary: response.spendingSummary,
+                dataUnavailable: response.dataUnavailable,
                 subscriptions: response.subscriptions,
                 spendingInsights: response.spendingInsights,
                 transactions: response.transactions,
@@ -323,7 +334,7 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
         } catch (error) {
             console.error('Chat error:', error);
 
-            if (!isDisposedRef.current) {
+            if (!isDisposedRef.current && activeSessionRef.current === sessionId) {
                 setMessages(prev => [...prev, {
                     id: Date.now().toString(),
                     role: 'assistant',
@@ -335,6 +346,7 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
             }
             return null;
         } finally {
+            sendingRef.current = false;
             if (!isDisposedRef.current) {
                 setIsLoading(false);
             }
@@ -576,7 +588,7 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
 
                     while (retries > 0 && !text) {
                         try {
-                            text = await VoiceService.speechToText(uri, locale);
+                            text = await VoiceService.speechToText(uri);
                         } catch (sttError: any) {
                             retries--;
                             if (retries > 0) {
@@ -628,6 +640,7 @@ export function useChatViewModel(options: UseChatViewModelOptions = {}) {
 
     return {
         messages,
+        sessionId,
         isLoading,
         isTranscribing,
         sendMessage,

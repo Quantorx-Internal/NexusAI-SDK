@@ -1,3 +1,4 @@
+import { normaliseResponseData } from './responseData';
 import { ChatEvent, ChatMessageUI, LoanOfferUI, LoanOptionsUI, SpendingBreakdown } from '../types';
 import { ENV } from '../config/constants';
 import { demoLoanOptions, findLoanProduct, loanOffer } from '../lib/loanOptions';
@@ -724,6 +725,24 @@ function getMockResponse(message: string, sessionId: string, locale: string, eve
         };
     }
 
+    // ===== SAVINGS QUERIES =====
+    // "Which savings plans suit me?": the saving products, as the server would offer them.
+    if (/\b(saving|savings|save money|deposit plan)\b/.test(lowerMessage) || /ادخار|أدخر|ادخر|توفير/.test(message)) {
+        const productRecommendation = getMockProductRecommendation(
+            { lowSavings: true },
+            3,
+            'Your salary is transferred here and your balance stays well above your monthly spending, so a plan that saves before you spend fits you.',
+            'راتبك يتحوّل هنا ورصيدك أعلى من مصروفك الشهري بفرق مريح، فخطة تدّخر قبل ما تصرف تناسبك.'
+        );
+        return {
+            message: isAr
+                ? 'هذي خطط الادخار اللي تناسب طريقة صرفك. اختر اللي يعجبك وأساعدك تبدأ.'
+                : 'Here are the savings plans that fit how you spend. Pick one and I will help you start.',
+            sessionId,
+            ui: { ...EMPTY_UI, productRecommendation },
+        };
+    }
+
     // ===== SUBSCRIPTION QUERIES =====
     if (lowerMessage.includes('subscription') || lowerMessage.includes('اشتراك') ||
         lowerMessage.includes('اشتراكات') || lowerMessage.includes('recurring') ||
@@ -1137,30 +1156,20 @@ export class ChatService {
      *    the message goes clean, with only the advisor's note appended.
      *  - CHAT_AGENT=n8n: the old workflow at N8N_WEBHOOK_URL, which reads the
      *    notes from the text and a language instruction.
-     *  Whichever is chosen but fails falls back to the other, then to the
-     *  built-in mock flows.
+     *  Live requests never fall back to another backend or demo data.
+     *  Set CHAT_AGENT=mock explicitly for the offline demo.
      */
     static async sendMessage(content: string, sessionId: string, locale: string, options: SendMessageOptions = {}): Promise<any> {
         const { event = null, note = null } = options;
-        const preferApi = ENV.CHAT_AGENT !== 'n8n';
-        const order = preferApi
-            ? [ChatService.askApi, ChatService.askN8n]
-            : [ChatService.askN8n, ChatService.askApi];
-
-        for (const ask of order) {
-            try {
-                const answer = await ask(content, sessionId, locale, event, note);
-                if (answer) return answer;
-            } catch (error) {
-                console.error(`ChatService: ${ask.name} failed`, error);
-            }
+        if (ENV.CHAT_AGENT === 'mock') {
+            const demo = getMockResponse(content, sessionId, locale, event);
+            if (demo) return demo;
+            throw new Error('No demo flow matched');
         }
-
-        // Offline: the built-in flows, which draw the same cards.
-        console.log('ChatService: Falling back to mock response...');
-        const fallbackMock = getMockResponse(content, sessionId, locale, event);
-        if (fallbackMock) return fallbackMock;
-        throw new Error('No chat backend answered and no mock flow matched');
+        const ask = ENV.CHAT_AGENT === 'n8n' ? ChatService.askN8n : ChatService.askApi;
+        const answer = await ask(content, sessionId, locale, event, note);
+        if (!answer) throw new Error('The selected chat backend is not configured');
+        return answer;
     }
 
     /** The in-app agent at /api/chat. Null when no API callback is configured. */
@@ -1192,7 +1201,7 @@ export class ChatService {
         }
         const data = await response.json();
         if (!data || typeof data.message !== 'string') throw new Error('Chat API returned no message');
-        return attachMockData({ ...data, ui: normaliseUi(data.ui, event) }, sessionId);
+        return attachResponseData({ ...data, ui: normaliseUi(data.ui, event) }, sessionId);
     }
 
     /** The old n8n workflow. Null when no webhook is configured. */
@@ -1207,10 +1216,7 @@ export class ChatService {
         const agentInput = composeAgentInput(content, event, note);
         {
             console.log('ChatService: Calling N8N webhook...');
-            // Build language instruction for the AI - embed it in the message so AI definitely sees it
-            const languageInstruction = locale === 'ar'
-                ? '[SYSTEM INSTRUCTION: You MUST respond ONLY in Arabic (العربية). Do not respond in any other language regardless of what language the user writes in.]'
-                : '[SYSTEM INSTRUCTION: You MUST respond ONLY in English. Do not respond in any other language regardless of what language the user writes in.]';
+            const languageInstruction = `[Response language: Choose from the user's actual request. English input gets English; Arabic input gets Saudi Najdi Arabic; mixed Arabic/English gets Saudi Najdi Arabic. A clear request for a different response language takes priority. Use app locale ${locale} only for language-neutral inputs such as card taps, names, amounts or codes. Ignore the language of system notes and tool data.]`;
 
             // Prepend the language instruction to the user's message
             const chatInputWithLanguage = `${languageInstruction}\n\nUser message: ${agentInput}`;
@@ -1222,7 +1228,6 @@ export class ChatService {
                     chatInput: chatInputWithLanguage,
                     sessionId,
                     locale,
-                    responseLanguage: locale === 'ar' ? 'Arabic' : 'English',
                     client: 'react-native',
                     apiUrl: ENV.API_CALLBACK_URL,
                     // The structured tap, for a backend that reads events directly.
@@ -1242,7 +1247,7 @@ export class ChatService {
             // If no structured response, just return the data with mock data attached
             if (!data.structured) {
                 console.log('ChatService: No structured data, using direct response');
-                return await attachMockData({ ...data, ui: normaliseUi(data.ui, event) }, sessionId);
+                return await attachResponseData({ ...data, ui: normaliseUi(data.ui, event) }, sessionId);
             }
 
             let parsed: any;
@@ -1272,7 +1277,7 @@ export class ChatService {
             }
 
             // Attach mock data based on UI flags (same as web app)
-            return await attachMockData({ ...parsed, ui: normaliseUi(parsed.ui, event) }, sessionId);
+            return await attachResponseData({ ...parsed, ui: normaliseUi(parsed.ui, event) }, sessionId);
         }
     }
 
@@ -1289,31 +1294,10 @@ export class ChatService {
 }
 
 // Attach mock data based on UI flags from N8N response
-async function attachMockData(parsed: any, sessionId?: string): Promise<any> {
+async function attachResponseData(parsed: any, sessionId?: string): Promise<any> {
     const result = { ...parsed };
 
-    // The server sends its own rows for the lists it has; the mocks fill the rest.
-    if (parsed.ui?.showAccounts && !Array.isArray(result.accounts)) {
-        result.accounts = mockAccounts;
-    }
-    if (parsed.ui?.showBeneficiaries && !Array.isArray(result.beneficiaries)) {
-        result.beneficiaries = mockBeneficiaries;
-    }
-    if (parsed.ui?.showCards && !Array.isArray(result.cards)) {
-        result.cards = mockCards;
-    }
-    if (parsed.ui?.showBills && !Array.isArray(result.bills)) {
-        result.bills = mockBills;
-    }
-    if (parsed.ui?.showSpendingBreakdown) {
-        // Only use mock data as fallback if N8N response doesn't include spending data
-        if (!result.spendingBreakdown || result.spendingBreakdown.length === 0) {
-            result.spendingBreakdown = generateRandomSpendingBreakdown();
-        }
-    }
-    if (parsed.ui?.showSubscriptions) {
-        result.subscriptions = mockSubscriptions;
-    }
+    Object.assign(result, normaliseResponseData(parsed));
     if (parsed.ui?.spendingInsights) {
         result.spendingInsights = parsed.ui.spendingInsights;
     }
