@@ -49,6 +49,7 @@
     "expo": "*",
     "expo-audio": "*",
     "expo-file-system": "*",
+    "expo-font": "*",
     "lucide-react-native": "*",
     "react-native": "*",
     "react-native-safe-area-context": "*",
@@ -63,6 +64,7 @@
     }
   },
   "dependencies": {
+    "@expo-google-fonts/zain": "^0.4.1",
     "@react-native-async-storage/async-storage": "*",
     "expo": "*",
     "expo-audio": "^57.0.5",

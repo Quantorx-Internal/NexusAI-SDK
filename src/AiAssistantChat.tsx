@@ -1,12 +1,19 @@
 import React from 'react';
 import { StyleSheet, View, StyleProp, ViewStyle, ActivityIndicator, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useFonts } from 'expo-font';
 import { ChatScreen } from './views/ChatScreen';
 import { LocaleProvider, Locale, useLocale } from './contexts/LocaleContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LayoutDirectionProvider } from './contexts/LayoutDirectionContext';
 import type { ThemeInput } from './theme/theme';
-import { color } from './theme/tokens';
+import { color, face, fontFaces } from './theme/tokens';
+
+// The design uses two weights; Zain's other files stay out of the bundle.
+const ZAIN_FONTS = {
+    [fontFaces.regular]: require('@expo-google-fonts/zain/400Regular/Zain_400Regular.ttf'),
+    [fontFaces.bold]: require('@expo-google-fonts/zain/700Bold/Zain_700Bold.ttf'),
+};
 
 export interface AiAssistantChatProps {
     /** Initial locale/language */
@@ -39,7 +46,7 @@ function ChatContainer() {
             {isChangingLocale && (
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={color.brand[600]} />
-                    <Text style={styles.loadingText}>Switching language...</Text>
+                    <Text style={styles.loadingText}>Switching language…</Text>
                 </View>
             )}
         </SafeAreaProvider>
@@ -65,6 +72,13 @@ function ChatContainer() {
  * ```
  */
 export function AiAssistantChat({ locale = 'en', theme, style }: AiAssistantChatProps = {}) {
+    // Hold the first frame for the font, so text never jumps from the system
+    // face to Zain. If loading fails, show the chat in the system face.
+    const [fontsLoaded, fontError] = useFonts(ZAIN_FONTS);
+    if (!fontsLoaded && !fontError) {
+        return <View style={[styles.container, style]} />;
+    }
+
     return (
         <ThemeProvider initialTheme={theme}>
             <LocaleProvider initialLocale={locale}>
@@ -93,7 +107,7 @@ const styles = StyleSheet.create({
     loadingText: {
         fontSize: 16,
         color: '#666',
-        fontWeight: '500',
+        ...face('500'),
     },
 });
 

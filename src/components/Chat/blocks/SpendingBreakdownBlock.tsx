@@ -3,8 +3,10 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { ChevronDown, ChevronUp, TrendingUp, TrendingDown } from 'lucide-react-native';
 import { Card, StackedBar, RampKey, rampAt } from '../../ui';
 import { color, layout, size, text, iconStroke } from '../../../theme/tokens';
+import { CountUp, GrowIn } from '../../../lib/motion';
 import { formatCurrency, formatMonth } from '../../../lib/utils';
 import { SpendingBreakdown } from '../../../types';
+import { useVisualRTL, Mirror } from '../../../contexts/LayoutDirectionContext';
 
 /**
  * Family D · SpendingBreakdown.
@@ -70,13 +72,16 @@ export function SpendingBreakdownBlock({
                     {period ? ` · ${period}` : ''}
                 </Text>
                 <Text style={[text('hero'), styles.tabular]} numberOfLines={1} adjustsFontSizeToFit>
-                    {formatCurrency(total, 'SAR', locale)}
+                    <CountUp value={total} format={(n) => formatCurrency(n, 'SAR', locale)} delay={260} />
                 </Text>
             </View>
 
             {total > 0 ? (
                 <View style={styles.bar}>
-                    <StackedBar segments={segments} />
+                    {/* The month's spend fills in from the reading start. */}
+                    <GrowIn delay={320}>
+                        <StackedBar segments={segments} />
+                    </GrowIn>
                 </View>
             ) : (
                 <Text style={[text('caption'), styles.bar]}>{t.noSpending}</Text>
@@ -155,6 +160,7 @@ function CategoryRow({
     // Spending up is bad news, so ↑ is danger and ↓ is success.
     const up = category.change > 0;
     const Arrow = up ? TrendingUp : TrendingDown;
+    const visualRTL = useVisualRTL();
     const changeColor = up ? color.danger.fg : color.success.fg;
 
     return (
@@ -177,7 +183,9 @@ function CategoryRow({
                 </Text>
                 {category.change !== 0 && (
                     <View style={styles.change}>
-                        <Arrow size={14} color={changeColor} strokeWidth={iconStroke} />
+                        <Mirror when={visualRTL}>
+                            <Arrow size={14} color={changeColor} strokeWidth={iconStroke} />
+                        </Mirror>
                         <Text
                             style={text('caption', { color: changeColor, fontWeight: '600' })}
                         >

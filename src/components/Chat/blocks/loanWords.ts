@@ -1,5 +1,5 @@
 import type { LoanFit } from '../../../types';
-import { normalizeDigits } from '../../../lib/utils';
+import { normalizeDigits, AR_DATE_LOCALE } from '../../../lib/utils';
 
 /**
  * Words and number formats for the two loan cards.
@@ -44,11 +44,11 @@ export function compact(amount: number, locale: LoanLocale): string {
 export function stamp(iso: string, locale: LoanLocale): string {
     try {
         const date = new Date(iso);
-        const day = new Intl.DateTimeFormat(locale === 'ar' ? 'ar-SA' : 'en-GB', {
+        const day = new Intl.DateTimeFormat(locale === 'ar' ? AR_DATE_LOCALE : 'en-GB', {
             day: 'numeric',
             month: locale === 'ar' ? 'long' : 'short',
         }).format(date);
-        const time = new Intl.DateTimeFormat(locale === 'ar' ? 'ar-SA' : 'en-US', {
+        const time = new Intl.DateTimeFormat(locale === 'ar' ? AR_DATE_LOCALE : 'en-US', {
             hour: 'numeric',
             minute: '2-digit',
         }).format(date);

@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Flag } from 'lucide-react-native';
 import { Card, SectionHeader, StatusPill, IconBox, iconOn, RowDivider } from '../../ui';
-import { color, layout, size, text, iconStroke } from '../../../theme/tokens';
+import { color, layout, size, text, iconStroke, face } from '../../../theme/tokens';
 import { formatCurrency, formatDateShort } from '../../../lib/utils';
 import { Bill } from '../../../types';
 import { billVisual } from './billVisuals';
@@ -92,31 +92,37 @@ function BillRow({
 
             <View style={styles.rowText}>
                 <View style={styles.nameRow}>
+                    {/* Two lines, not one: beside the amount and its pill, one line
+                        cut "Saudi Electricity Company" to "Saudi Electricity…" and the
+                        Arabic name to its first word. */}
                     <Text
-                        style={text('rowValue', isPaid ? { color: color.text.secondary } : undefined)}
-                        numberOfLines={1}
+                        style={[text('rowValue', isPaid ? { color: color.text.secondary } : undefined), styles.name]}
+                        numberOfLines={2}
                     >
                         {providerName}
                     </Text>
                     {bill.isPriority && !isPaid ? (
-                        <Flag size={12} color={color.danger.fg} strokeWidth={iconStroke} />
+                        <Flag size={12} color={color.text.tertiary} strokeWidth={iconStroke} style={styles.flag} />
                     ) : null}
                 </View>
                 <Text style={text('caption')} numberOfLines={1}>
                     {labels.acct} {bill.accountNumber}
                 </Text>
+                {/* The pill sits under the name, not under the amount: in that
+                    column "متأخرة · 29 ديسمبر" took the width the name needed. */}
+                <View style={styles.pillRow}>
+                    <StatusPill label={pill.label} tone={pill.tone} dot={pill.dot} />
+                </View>
             </View>
 
             <View style={styles.rowRight}>
                 <Text
                     style={[
                         text('rowValue', {
-                            fontWeight: '700',
-                            color: isPaid
-                                ? color.text.tertiary
-                                : overdue
-                                    ? color.danger.fg
-                                    : color.text.primary,
+                            ...face('700'),
+                            // Red once per bill: the overdue pill carries it, so the
+                            // amount stays in ink.
+                            color: isPaid ? color.text.tertiary : color.text.primary,
                         }),
                         styles.tabular,
                     ]}
@@ -124,7 +130,6 @@ function BillRow({
                 >
                     {formatCurrency(bill.amount, 'SAR', locale)}
                 </Text>
-                <StatusPill label={pill.label} tone={pill.tone} dot={pill.dot} />
             </View>
         </Pressable>
     );
@@ -141,8 +146,11 @@ const styles = StyleSheet.create({
     },
     pressed: { backgroundColor: color.surface2 },
     rowText: { flex: 1, gap: 2 },
-    nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    rowRight: { alignItems: 'flex-end', gap: 4 },
+    nameRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+    name: { flexShrink: 1 },
+    flag: { marginTop: 5 },
+    rowRight: { alignItems: 'flex-end', alignSelf: 'flex-start', paddingTop: 2 },
+    pillRow: { flexDirection: 'row', marginTop: 4 },
     tabular: { fontVariant: ['tabular-nums'] },
 });
 

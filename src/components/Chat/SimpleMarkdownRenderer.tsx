@@ -1,6 +1,6 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import Markdown from 'react-native-markdown-display';
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import Markdown, { renderRules } from 'react-native-markdown-display';
 import {
     TransferPreviewBlock,
     AccountListBlock,
@@ -23,6 +23,9 @@ import {
     LoanPlanBlock,
 } from './blocks';
 import type { LoanPlanChoice, AskAdvisor } from './blocks';
+import { face, font, rtlBase } from '../../theme/tokens';
+import { textDirectionFor } from '../../contexts/LayoutDirectionContext';
+import { FadeRise, countWords, replyStream, replyStreamDuration, streamStep, streamedAlpha, useStreamClock } from '../../lib/motion';
 import {
     Account,
     Beneficiary,
@@ -99,6 +102,8 @@ interface SimpleMarkdownRendererProps {
     localLoanRemark?: (amount: number, months: number) => string | null;
     isRTL?: boolean;
     isLayoutRTL?: boolean;
+    /** A reply that has just arrived: its words stream in, then its cards. */
+    stream?: boolean;
 }
 
 const markdownStyles = StyleSheet.create({
@@ -106,10 +111,13 @@ const markdownStyles = StyleSheet.create({
         color: '#333',
         fontSize: 15,
         lineHeight: 22,
+        fontFamily: font.family,
+        ...rtlBase,
     },
-    bodyRTL: {
-        textAlign: 'right',
-        writingDirection: 'rtl',
+    // A loaded font is one file per weight: bold text needs the bold file,
+    // not fontWeight on the regular one.
+    strong: {
+        ...face('700'),
     },
     paragraph: {
         marginBottom: 10,
@@ -172,6 +180,7 @@ export function SimpleMarkdownRenderer({
     localLoanRemark,
     isRTL = false,
     isLayoutRTL = false,
+    stream = false,
 }: SimpleMarkdownRendererProps) {
 
     const hasTransferPreview = isObject(transferPreview);
@@ -194,50 +203,50 @@ export function SimpleMarkdownRenderer({
     const hasLoanOffer = isObject(loanOffer) && isObject((loanOffer as LoanOfferUI).terms);
     const hasLoanOptions = isObject(loanOptions) && Array.isArray((loanOptions as LoanOptionsUI).available);
 
+    // The reply's own direction: English stays left to right on the Arabic screen.
+    const contentDirection = textDirectionFor(content || '');
+
     const mkStyles = {
         ...markdownStyles,
         body: {
             ...markdownStyles.body,
-            ...(isRTL ? {
-                textAlign: 'right' as const,
-                writingDirection: 'rtl' as const,
-            } : {}),
+            ...contentDirection,
         },
-        heading1: isRTL ? {
-            textAlign: 'right' as const,
-            writingDirection: 'rtl' as const,
-        } : {},
-        heading2: isRTL ? {
-            textAlign: 'right' as const,
-            writingDirection: 'rtl' as const,
-        } : {},
+        heading1: {
+            ...face('700'),
+            ...contentDirection,
+        },
+        heading2: {
+            ...face('700'),
+            ...contentDirection,
+        },
+        // Text alignment follows the language; layout (rows, sides, margins)
+        // follows isLayoutRTL, true only when the engine does not mirror it
+        // already. Keyed on the language, a right-to-left engine mirrored
+        // the lists twice and put the bullets on the left.
         paragraph: {
             ...markdownStyles.paragraph,
-            ...(isRTL ? {
+            ...(isLayoutRTL ? {
                 flexDirection: 'row' as const,
                 justifyContent: 'flex-start' as const,
             } : {})
         },
         // Explicitly style text nodes if possible
-        text: isRTL ? {
-            textAlign: 'right' as const,
-            writingDirection: 'rtl' as const,
-        } : {},
-        textgroup: isRTL ? {
-            textAlign: 'right' as const,
-            writingDirection: 'rtl' as const,
-            alignItems: 'flex-end' as const,
-        } : {},
+        text: contentDirection,
+        textgroup: {
+            ...contentDirection,
+            ...(isLayoutRTL ? { alignItems: 'flex-end' as const } : {}),
+        },
         // Fix for lists in RTL
-        bullet_list: isRTL ? {
+        bullet_list: isLayoutRTL ? {
             alignItems: 'flex-end' as const,
         } : {},
-        list_item: isRTL ? {
+        list_item: isLayoutRTL ? {
             flexDirection: 'row-reverse' as const,
             justifyContent: 'flex-end' as const,
         } : {},
         // Adjust spacing for bullets
-        bullet_list_icon: isRTL ? {
+        bullet_list_icon: isLayoutRTL ? {
             marginLeft: 8,
             marginRight: 0,
             fontSize: 20,
@@ -246,10 +255,10 @@ export function SimpleMarkdownRenderer({
             marginRight: 8,
             fontSize: 20,
         },
-        bullet_list_content: isRTL ? {
-            alignItems: 'flex-end' as const,
-            textAlign: 'right' as const,
-        } : {},
+        bullet_list_content: {
+            ...contentDirection,
+            ...(isLayoutRTL ? { alignItems: 'flex-end' as const } : {}),
+        },
     };
 
     return (
@@ -257,15 +266,19 @@ export function SimpleMarkdownRenderer({
             {/* Text Content */}
             {content ? (
                 <View style={[styles.bubble, isLayoutRTL && styles.bubbleRTL]}>
-                    <Markdown style={mkStyles}>
-                        {content}
-                    </Markdown>
+                    <StreamedMarkdown content={content} style={mkStyles} stream={stream} />
                 </View>
             ) : null}
 
             {/* Blocks */}
             {(hasTransferPreview || hasTransferSuccess || hasAccounts || hasBeneficiaries || hasCards || hasCardPreview || hasCardActionSuccess || hasSpendingBreakdown || hasSpendingInsights || hasSubscriptions || hasBills || hasBillPaymentPreview || hasBillPaymentSuccess || hasTicketCreated || hasRecommendations || hasTransactions || hasExchangeRate || hasLoanOffer || hasLoanOptions) && (
-                <View style={styles.blocksContainer}>
+                // The cards rise in after the reply text, as its evidence: on a
+                // streamed reply, as its last words settle.
+                <FadeRise
+                    delay={stream ? Math.max(200, replyStreamDuration(content || '') - replyStream.fade) : 200}
+                    distance={12}
+                    style={styles.blocksContainer}
+                >
                     {/* Render transfer preview if present */}
                     {hasTransferPreview && transferPreview && (
                         <TransferPreviewBlock
@@ -443,10 +456,109 @@ export function SimpleMarkdownRenderer({
                             onDetails={onRecommendationDetails}
                         />
                     )}
-                </View>
+                </FadeRise>
             )}
         </View>
     );
+}
+
+/**
+ * The reply's markdown, streamed: each word's ink fades up after the one
+ * before it (see replyStream). The words are all laid out from the first
+ * frame, see-through until their turn, so lines never reflow. Once the
+ * stream is over the plain rules render, the same as a reply that did not
+ * stream.
+ */
+function StreamedMarkdown({ content, style, stream }: { content: string; style: any; stream: boolean }) {
+    const words = useMemo(() => countWords(content), [content]);
+    const step = streamStep(words);
+    const elapsed = useStreamClock(stream, replyStreamDuration(content));
+    const rules = useMemo(
+        () => (elapsed === Infinity ? undefined : fadeRules(elapsed, step)),
+        [elapsed, step],
+    );
+    return (
+        <Markdown style={style} rules={rules}>
+            {content}
+        </Markdown>
+    );
+}
+
+const BODY_INK = markdownStyles.body.color as string;
+
+/** `ink` with alpha `a`; ink is #rgb, #rrggbb, or anything else (as body ink). */
+function withAlpha(ink: string, a: number): string {
+    let hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(ink) ? ink.slice(1) : BODY_INK.slice(1);
+    if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+    const n = parseInt(hex, 16);
+    return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a.toFixed(3)})`;
+}
+
+/** The first text node under an AST node, in reading order. */
+function firstText(node: any): any {
+    if (node.type === 'text') return node;
+    for (const child of node.children ?? []) {
+        const found = firstText(child);
+        if (found) return found;
+    }
+    return undefined;
+}
+
+/**
+ * Markdown rules that give word `i` the ink of streamedAlpha(i). Text nodes
+ * render in reading order, so a running count gives each word its place;
+ * `body`, the root, renders last and resets the count for the next pass.
+ * A list item's bullet takes the ink of its first word.
+ */
+function fadeRules(elapsed: number, step: number) {
+    let index = 0;
+    const firstWord = new Map<string, number>();
+
+    return {
+        text: (node: any, _children: any, _parent: any, styles: any, inheritedStyles: any = {}) => {
+            const ink = StyleSheet.flatten([inheritedStyles, styles.text])?.color;
+            firstWord.set(node.key, index);
+            const parts = String(node.content).split(/(\s+)/);
+            return (
+                <Text key={node.key} style={[inheritedStyles, styles.text]}>
+                    {parts.map((part, k) => {
+                        if (!part || /^\s+$/.test(part)) return part;
+                        const a = streamedAlpha(index++, elapsed, step);
+                        if (a >= 1) return part;
+                        return (
+                            <Text key={k} style={{ color: withAlpha(typeof ink === 'string' ? ink : BODY_INK, a) }}>
+                                {part}
+                            </Text>
+                        );
+                    })}
+                </Text>
+            );
+        },
+        list_item: (node: any, children: any, parent: any, styles: any, inheritedStyles: any = {}) => {
+            const item = renderRules.list_item!(node, children, parent, styles, inheritedStyles) as React.ReactElement<any>;
+            const first = firstText(node);
+            const at = first ? firstWord.get(first.key) : undefined;
+            if (at === undefined) return item;
+            const a = streamedAlpha(at, elapsed, step);
+            if (a >= 1) return item;
+            const [marker, ...rest] = React.Children.toArray(item.props.children) as React.ReactElement<any>[];
+            if (!marker) return item;
+            const ink = StyleSheet.flatten(marker.props.style)?.color;
+            return React.cloneElement(
+                item,
+                undefined,
+                React.cloneElement(marker, {
+                    style: [marker.props.style, { color: withAlpha(typeof ink === 'string' ? ink : BODY_INK, a) }],
+                }),
+                ...rest,
+            );
+        },
+        body: (node: any, children: any, parent: any, styles: any) => {
+            index = 0;
+            firstWord.clear();
+            return renderRules.body!(node, children, parent, styles);
+        },
+    };
 }
 
 const styles = StyleSheet.create({

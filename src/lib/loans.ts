@@ -105,6 +105,13 @@ export function tenureLabel(months: number, locale: 'en' | 'ar' = 'en', inYears 
 export function tenureRange(minMonths: number, maxMonths: number, locale: 'en' | 'ar' = 'en'): string {
     const years = minMonths % 12 === 0 && maxMonths % 12 === 0;
     const low = years ? minMonths / 12 : minMonths;
+    if (locale === 'ar') {
+        // The range is one left-to-right run, or the two numbers swap.
+        const high = years ? maxMonths / 12 : maxMonths;
+        const [one, , few, many] = years ? ['سنة', 'سنتين', 'سنوات', 'سنة'] : ['شهر', 'شهرين', 'أشهر', 'شهر'];
+        const unit = high <= 2 ? one : high <= 10 ? few : many;
+        return `\u2066${low}\u2060–\u2060${high}\u2069\u00a0${unit}`;
+    }
     return `${low}–${tenureLabel(maxMonths, locale, years)}`;
 }
 

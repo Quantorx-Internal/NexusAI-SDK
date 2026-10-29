@@ -77,7 +77,7 @@ export function CopyField({ value, copiedLabel = 'Copied', pendingLabel = 'Pendi
 
 const styles = StyleSheet.create({
     field: {
-        height: size.copyField,
+        minHeight: size.copyField,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',

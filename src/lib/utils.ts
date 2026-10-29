@@ -1,13 +1,58 @@
+/**
+ * Money in one stable shape for both languages.
+ *
+ * The digits always come from en-US: Latin digits, "." for decimals and ","
+ * for thousands. The phone's own Arabic format writes the decimal mark as a
+ * comma on current iOS ("12,300,00"), which reads as twelve million.
+ *
+ * Arabic adds the locale's currency symbol after the number and wraps the
+ * whole amount in a left-to-right isolate (U+2066 ... U+2069), so the
+ * right-to-left sentence around it cannot move the minus to the far end
+ * ("24.50-") or split the symbol from its number.
+ */
+function moneyParts(amount: number, currency: string, locale: 'en' | 'ar') {
+    // Plain arithmetic: Hermes has no NumberFormat.formatToParts.
+    const [whole, fraction] = Math.abs(amount).toFixed(2).split('.');
+    const integer = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const symbol = currencySymbol(currency, locale);
+    return { sign: amount < 0 ? '-' : '', integer, fraction, symbol };
+}
+
+const BIDI_MARKS = /[\u200e\u200f\u061c\u2066-\u2069]/g;
+
+function currencySymbol(currency: string, locale: 'en' | 'ar'): string {
+    try {
+        const zero = new Intl.NumberFormat(locale === 'ar' ? 'ar-SA' : 'en-US', {
+            style: 'currency',
+            currency,
+        }).format(0);
+        // Whatever is left once the digits, separators and spaces are gone.
+        // "ر.س." loses its final dot: in a left-to-right run it lands on the wrong side.
+        const symbol = zero
+            .replace(BIDI_MARKS, '')
+            .replace(/[0-9\u0660-\u0669.,\u066b\u066c\s\u00a0]+(?=$|[^.])/g, ' ')
+            .trim()
+            .replace(/\.$/, '');
+        return symbol || currency;
+    } catch (e) {
+        return currency;
+    }
+}
+
+const LTR_ISOLATE = '\u2066';
+const POP_ISOLATE = '\u2069';
+
 export function formatCurrency(
     amount: number,
     currency: string = 'SAR',
     locale: 'en' | 'ar' = 'en'
 ): string {
-    // Use consistent locale codes
-    const localeCode = locale === 'ar' ? 'ar-SA' : 'en-US';
-
+    if (locale === 'ar') {
+        const { sign, integer, fraction, symbol } = moneyParts(amount, currency, locale);
+        return `${LTR_ISOLATE}${sign}${integer}.${fraction}\u00a0${symbol}${POP_ISOLATE}`;
+    }
     try {
-        return new Intl.NumberFormat(localeCode, {
+        return new Intl.NumberFormat('en-US', {
             style: 'currency',
             currency,
             minimumFractionDigits: 2,
@@ -17,11 +62,18 @@ export function formatCurrency(
     }
 }
 
+/**
+ * Arabic dates in the Gregorian calendar with Latin digits, the same as the
+ * web app and the English screens. Plain ar-SA gives the Hijri calendar, so
+ * the same bill read "29 Dec" in English and "28 جمادى الآخرة" in Arabic.
+ */
+export const AR_DATE_LOCALE = 'ar-SA-u-ca-gregory-nu-latn';
+
 export function formatDate(
     date: string | Date,
     locale: 'en' | 'ar' = 'en'
 ): string {
-    const localeCode = locale === 'ar' ? 'ar-SA' : 'en-US';
+    const localeCode = locale === 'ar' ? AR_DATE_LOCALE : 'en-US';
     try {
         return new Intl.DateTimeFormat(localeCode, {
             day: 'numeric',
@@ -36,43 +88,32 @@ export function formatDate(
 /**
  * Split a formatted amount into its integer part and its decimal part so the
  * decimals can be dimmed (account tiles: 24/32 integer, 18/600 tertiary decimals).
- *
- * Uses Intl parts rather than splitting on "." — the Arabic locale uses U+066B
- * as its decimal separator, so a literal "." split silently fails there.
+ * Both parts render inside one Text, so the Arabic isolate opens in `head`
+ * and closes in `decimals`.
  */
 export function splitAmount(
     amount: number,
     currency: string = 'SAR',
     locale: 'en' | 'ar' = 'en'
 ): { head: string; decimals: string } {
-    const localeCode = locale === 'ar' ? 'ar-SA' : 'en-US';
-    try {
-        const parts = new Intl.NumberFormat(localeCode, {
-            style: 'currency',
-            currency,
-            minimumFractionDigits: 2,
-        }).formatToParts(amount);
-
-        const cut = parts.findIndex(p => p.type === 'decimal');
-        if (cut === -1) return { head: formatCurrency(amount, currency, locale), decimals: '' };
-
+    if (locale === 'ar') {
+        const { sign, integer, fraction, symbol } = moneyParts(amount, currency, locale);
         return {
-            head: parts.slice(0, cut).map(p => p.value).join(''),
-            decimals: parts.slice(cut).map(p => p.value).join(''),
+            head: `${LTR_ISOLATE}${sign}${integer}`,
+            decimals: `.${fraction}\u00a0${symbol}${POP_ISOLATE}`,
         };
-    } catch (e) {
-        const whole = formatCurrency(amount, currency, locale);
-        const at = whole.lastIndexOf('.');
-        return at === -1
-            ? { head: whole, decimals: '' }
-            : { head: whole.slice(0, at), decimals: whole.slice(at) };
     }
+    // English keeps Intl's own spacing ("$2,000", "SAR 2,000"); en-US always
+    // marks decimals with ".", so the last one is the cut.
+    const whole = formatCurrency(amount, currency, locale);
+    const at = whole.lastIndexOf('.');
+    return at === -1 ? { head: whole, decimals: '' } : { head: whole.slice(0, at), decimals: whole.slice(at) };
 }
 
 /** Month name for a period label, e.g. "September". */
 export function formatMonth(date: string | Date, locale: 'en' | 'ar' = 'en'): string {
     try {
-        return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-SA' : 'en-US', {
+        return new Intl.DateTimeFormat(locale === 'ar' ? AR_DATE_LOCALE : 'en-US', {
             month: 'long',
         }).format(new Date(date));
     } catch (e) {
@@ -83,7 +124,7 @@ export function formatMonth(date: string | Date, locale: 'en' | 'ar' = 'en'): st
 /** Short time, e.g. "5:19 PM" — the "when" on a receipt band. */
 export function formatTime(date: string | Date, locale: 'en' | 'ar' = 'en'): string {
     try {
-        return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-SA' : 'en-US', {
+        return new Intl.DateTimeFormat(locale === 'ar' ? AR_DATE_LOCALE : 'en-US', {
             hour: 'numeric',
             minute: '2-digit',
         }).format(new Date(date));
@@ -106,7 +147,7 @@ export function initials(name: string): string {
  */
 export function formatDateShort(date: string | Date, locale: 'en' | 'ar' = 'en'): string {
     try {
-        return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-SA' : 'en-GB', {
+        return new Intl.DateTimeFormat(locale === 'ar' ? AR_DATE_LOCALE : 'en-GB', {
             day: 'numeric',
             month: 'short',
         }).format(new Date(date));
@@ -154,4 +195,29 @@ export function parseAmountInput(input: string): number {
 /** Keep only digits, in whichever script the user is typing. */
 export function keepDigits(input: string): string {
     return (input || '').replace(NON_DIGIT_CHARS, '');
+}
+
+/**
+ * Keep number ranges ("5–25", "12-60", "1-2") in reading order inside
+ * Arabic text. Right to left, the two numbers swap places around the dash
+ * and "5–25 سنة" shows as "25–5". Each range becomes one left-to-right
+ * isolate; other text is untouched.
+ */
+export function isolateRanges(text: string): string {
+    // U+2060 around the dash keeps the line from breaking inside the range.
+    return text.replace(
+        /(\d[\d.,]*)\s?([–-])\s?(\d[\d.,]*)/g,
+        (_, low, dash, high) => `${LTR_ISOLATE}${low}\u2060${dash}\u2060${high}${POP_ISOLATE}`
+    );
+}
+
+/** A signed amount ("+450.00", "−24.50") kept whole in Arabic. */
+export function formatSignedCurrency(
+    amount: number,
+    currency: string,
+    locale: 'en' | 'ar',
+    sign: '+' | '−'
+): string {
+    const value = formatCurrency(Math.abs(amount), currency, locale);
+    return locale === 'ar' ? `${LTR_ISOLATE}${sign}${value}${POP_ISOLATE}` : `${sign}${value}`;
 }

@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, I18nManager } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, I18nManager, Animated } from 'react-native';
 import { Sparkles, RotateCcw, FileText, HandCoins, Wallet, Clock, Receipt } from 'lucide-react-native';
-import { color, layout, radius, size, text, iconStroke, Tone, toneSet, welcome } from '../../theme/tokens';
-import { useLayoutRTL, row, alignText, alignStart } from '../../contexts/LayoutDirectionContext';
+import { color, layout, radius, size, text, iconStroke, Tone, toneSet, welcome, face } from '../../theme/tokens';
+import { useLayoutRTL, row, alignText, alignStart, Mirror } from '../../contexts/LayoutDirectionContext';
 import { Locale } from '../../contexts/LocaleContext';
 import { CURRENCY_WORD, plain } from './blocks/loanWords';
 import { tenureLabel } from '../../lib/loans';
+import { CountUp, FadeRise, motion, useReduceMotion } from '../../lib/motion';
 
 /**
  * Welcome · answer before you ask (design §8b).
@@ -65,10 +66,6 @@ interface Suggestion {
     cta: string;
     message: string;
 }
-
-/** Characters per second while the summary types. Fast enough to read along, slow enough to feel typed. */
-const TYPING_CPS = 28;
-const TYPING_START_MS = 350;
 
 const arCount = (n: number, one: string, two: string, few: string, many: string) =>
     n === 1 ? one : n === 2 ? two : n <= 10 ? `${n} ${few}` : `${n} ${many}`;
@@ -237,7 +234,8 @@ const QUICK = {
 } as const;
 
 const WORDS = {
-    ar: { summaryTitle: 'ملخصك قبل ما تسأل', replay: 'أعد', canDo: 'أقدر أسويها لك الآن', next: 'التالي', of: (i: number, n: number) => `${i} / ${n}` },
+    // "1 / 3" is one left-to-right run, or the right-to-left line shows "3 / 1".
+    ar: { summaryTitle: 'ملخصك قبل ما تسأل', replay: 'أعد', canDo: 'أقدر أسويها لك الآن', next: 'التالي', of: (i: number, n: number) => `\u2066${i} / ${n}\u2069` },
     en: { summaryTitle: 'Your summary, before you ask', replay: 'Replay', canDo: 'I can do these for you now', next: 'Next', of: (i: number, n: number) => `${i} / ${n}` },
 } as const;
 
@@ -246,33 +244,13 @@ export function WelcomeView({ summary, loading = false, locale, isRTL = false, o
     const flip = useLayoutRTL();
     const segments = useMemo(() => (loading ? [] : buildSegments(summary, locale)), [summary, locale, loading]);
     const suggestions = useMemo(() => (summary ? buildSuggestions(summary, locale) : []), [summary, locale]);
-    const total = useMemo(() => segments.reduce((n, s) => n + s.text.length, 0), [segments]);
 
-    // Typing: one counter over every character; a tag appears whole once reached.
-    const [typed, setTyped] = useState(0);
+    // Replay remounts the stream, so the summary writes itself again.
     const [run, setRun] = useState(0);
-    const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-    useEffect(() => {
-        setTyped(0);
-        const start = setTimeout(() => {
-            timer.current = setInterval(() => {
-                setTyped(n => {
-                    if (n + 1 >= total && timer.current) {
-                        clearInterval(timer.current);
-                        timer.current = null;
-                    }
-                    return Math.min(total, n + 1);
-                });
-            }, 1000 / TYPING_CPS);
-        }, TYPING_START_MS);
-        return () => {
-            clearTimeout(start);
-            if (timer.current) clearInterval(timer.current);
-            timer.current = null;
-        };
-    }, [total, run]);
     const replay = useCallback(() => setRun(r => r + 1), []);
-    const done = typed >= total;
+
+    // The stack and the quick actions arrive as the sentence finishes.
+    const stackAt = Math.max(0, streamDuration(segments) - 200);
 
     const [index, setIndex] = useState(0);
     const current = suggestions[index % Math.max(suggestions.length, 1)];
@@ -284,22 +262,24 @@ export function WelcomeView({ summary, loading = false, locale, isRTL = false, o
             <View style={[styles.titleRow, row(flip)]}>
                 <View style={[styles.title, row(flip)]}>
                     <Sparkles size={size.icon.sm} color={color.brand[600]} strokeWidth={iconStroke} />
-                    <Text style={text('rowLabel', { fontWeight: '600', color: color.brand[600] })}>{words.summaryTitle}</Text>
+                    <Text style={[text('rowLabel', { fontWeight: '600', color: color.brand[600] }), { flexShrink: 1 }]}>{words.summaryTitle}</Text>
                 </View>
                 <Pressable
                     onPress={replay}
-                    disabled={!done}
+                    disabled={loading}
                     accessibilityRole="button"
                     accessibilityLabel={words.replay}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    style={({ pressed }) => [styles.replay, row(flip), (pressed || !done) && { opacity: 0.5 }]}
+                    style={({ pressed }) => [styles.replay, row(flip), pressed && { opacity: 0.5 }]}
                 >
-                    <RotateCcw size={size.icon.xs} color={color.text.tertiary} strokeWidth={iconStroke} />
+                    <Mirror when={I18nManager.isRTL}>
+                        <RotateCcw size={size.icon.xs} color={color.text.tertiary} strokeWidth={iconStroke} />
+                    </Mirror>
                     <Text style={text('caption')}>{words.replay}</Text>
                 </Pressable>
             </View>
 
-            {/* The summary, typed. Words are laid out as tokens so the tags can sit inline. */}
+            {/* The summary, streamed in as the assistant writes it. */}
             {loading ? (
                 <View style={styles.skeleton} accessibilityRole="progressbar">
                     <View style={[styles.skeletonLine, { width: '92%' }]} />
@@ -307,12 +287,12 @@ export function WelcomeView({ summary, loading = false, locale, isRTL = false, o
                     <View style={[styles.skeletonLine, { width: '60%' }]} />
                 </View>
             ) : (
-                <TypedSummary segments={segments} typed={typed} flip={flip} onTag={onQuickAction} />
+                <StreamedSummary key={run} segments={segments} flip={flip} onTag={onQuickAction} />
             )}
 
             {/* The stack: three things the assistant can do now. */}
             {suggestions.length > 0 && current ? (
-                <View style={styles.stackSection}>
+                <FadeRise key={`stack-${run}`} delay={stackAt} style={styles.stackSection}>
                     <View style={[styles.stackHeader, row(flip)]}>
                         <Text style={text('caption')}>{words.canDo}</Text>
                         <Text style={[text('caption'), styles.tabular]}>{words.of(index + 1, suggestions.length)}</Text>
@@ -320,14 +300,13 @@ export function WelcomeView({ summary, loading = false, locale, isRTL = false, o
                     <View style={styles.stack}>
                         {suggestions.length > 2 ? <View style={[styles.stackGhost, styles.stackGhostFar]} /> : null}
                         {suggestions.length > 1 ? <View style={[styles.stackGhost, styles.stackGhostNear]} /> : null}
-                        <Pressable
-                            onPress={next}
-                            accessibilityRole="button"
-                            style={[styles.card, { borderColor: toneSet(current.tone).border }]}
-                        >
+                        {/* A view, not a button: wrapped in one, Pay and Next merged
+                            into a single VoiceOver element and Next was unreachable.
+                            Keyed by the index, so Next brings the next card in. */}
+                        <FadeRise key={index} distance={12} style={[styles.card, { borderColor: toneSet(current.tone).border }]}>
                             <View style={[styles.cardHeader, row(flip)]}>
-                                <View style={[styles.cardIcon, { backgroundColor: toneSet(current.tone).bg }]}>
-                                    <current.Icon size={size.icon.lg} color={toneSet(current.tone).fg} strokeWidth={iconStroke} />
+                                <View style={styles.cardIcon}>
+                                    <current.Icon size={size.icon.lg} color={color.text.primary} strokeWidth={iconStroke} />
                                 </View>
                                 <View style={[styles.cardText, alignStart(flip)]}>
                                     <Text style={[text('cardTitle'), alignText(flip)]} numberOfLines={2}>
@@ -347,14 +326,20 @@ export function WelcomeView({ summary, loading = false, locale, isRTL = false, o
                                     <Text style={text('button', { color: color.text.inverse })}>{current.cta}</Text>
                                 </Pressable>
                                 {suggestions.length > 1 ? (
-                                    <Pressable onPress={next} accessibilityRole="button" style={styles.nextButton}>
+                                    <Pressable
+                                        onPress={next}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`${words.next}${locale === 'ar' ? '،' : ','} ${words.of(index + 1, suggestions.length)}`}
+                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                        style={styles.nextButton}
+                                    >
                                         <Text style={text('button', { color: color.text.secondary })}>{words.next}</Text>
                                     </Pressable>
                                 ) : null}
                             </View>
-                        </Pressable>
+                        </FadeRise>
                     </View>
-                </View>
+                </FadeRise>
             ) : null}
 
             {/* Quick actions: pills, financing filled. */}
@@ -364,12 +349,12 @@ export function WelcomeView({ summary, loading = false, locale, isRTL = false, o
                 contentContainerStyle={[styles.pills, row(flip)]}
                 keyboardShouldPersistTaps="handled"
             >
-                {QUICK[locale].map(action => {
+                {QUICK[locale].map((action, i) => {
                     const filled = 'filled' in action && action.filled;
                     const { Icon } = action;
                     return (
+                        <FadeRise key={`${action.id}-${run}`} delay={stackAt + 120 + i * 50}>
                         <Pressable
-                            key={action.id}
                             onPress={() => onQuickAction(action.message)}
                             accessibilityRole="button"
                             style={({ pressed }) => [
@@ -383,6 +368,7 @@ export function WelcomeView({ summary, loading = false, locale, isRTL = false, o
                             <Icon size={size.icon.sm} color={filled ? color.text.inverse : color.brand[600]} strokeWidth={iconStroke} />
                             <Text style={text('button', { color: filled ? color.text.inverse : color.text.primary })}>{action.label}</Text>
                         </Pressable>
+                        </FadeRise>
                     );
                 })}
             </ScrollView>
@@ -390,66 +376,161 @@ export function WelcomeView({ summary, loading = false, locale, isRTL = false, o
     );
 }
 
+/** One unit of the stream: a word, or a figure tag with the punctuation that hugs it. */
+type StreamItem =
+    | { kind: 'word'; text: string }
+    | { kind: 'tag'; text: string; tone: Tone; message: string; prefix: string; suffix: string };
+
 /**
- * The summary as a wrapping row of word tokens, so the tags render as real
- * pressable pills between words. Typing reveals characters left to right
- * through the segments; a tag shows whole as soon as its first character is
- * reached, so it never appears half-written.
+ * The sentence as stream units. Punctuation that opens a segment (", and",
+ * "، وصرفت") joins the unit before it, and an Arabic "و" that ends one joins
+ * the tag after it, so neither floats a gap away from its word.
  */
-function TypedSummary({
+function streamItems(segments: Segment[]): StreamItem[] {
+    const items: StreamItem[] = [];
+    let lastEndedWithSpace = true;
+    for (const segment of segments) {
+        if (segment.kind === 'tag') {
+            const previous = items[items.length - 1];
+            const joined = previous?.kind === 'word' && previous.text === 'و' && !lastEndedWithSpace;
+            if (joined) items.pop();
+            items.push({ kind: 'tag', text: segment.text, tone: segment.tone, message: segment.message, prefix: joined ? 'و' : '', suffix: '' });
+            lastEndedWithSpace = false;
+            continue;
+        }
+        segment.text.split(' ').forEach((word, wi) => {
+            if (!word) return;
+            const previous = items[items.length - 1];
+            const glued = wi === 0 && previous !== undefined && !lastEndedWithSpace;
+            if (glued && previous.kind === 'word') previous.text += word;
+            else if (glued && previous.kind === 'tag') previous.suffix += word;
+            else items.push({ kind: 'word', text: word });
+        });
+        lastEndedWithSpace = segment.text.endsWith(' ');
+    }
+    return items;
+}
+
+/**
+ * A figure tag in the summary, after the inline tags of ElevenLabs and Grok:
+ * a pale fill, no border and no dot, squarer than a capsule, set a step
+ * smaller than the sentence and bold. Plain facts (balance, spend) share one
+ * neutral fill; only what needs attention takes a tone.
+ */
+function tagTone(tone: Tone) {
+    if (tone === 'danger') return { bg: color.danger.bg, fg: color.danger.fgStrong };
+    if (tone === 'warning') return { bg: color.warning.bg, fg: color.warning.fgStrong };
+    return { bg: color.surface3, fg: color.text.primary };
+}
+
+/** The first number in a tag's text, so it can count up in place. */
+const NUMBER = /\d[\d,]*(?:\.\d+)?/;
+
+function StreamTag({ item, onPress }: { item: Extract<StreamItem, { kind: 'tag' }>; onPress: () => void }) {
+    const tone = tagTone(item.tone);
+    const reduce = useReduceMotion();
+    const settle = useRef(new Animated.Value(reduce ? 1 : 0)).current;
+    useEffect(() => {
+        if (reduce) return;
+        const run = Animated.timing(settle, { toValue: 1, duration: 360, easing: motion.easing, useNativeDriver: true });
+        run.start();
+        return () => run.stop();
+    }, [settle, reduce]);
+
+    const match = item.text.match(NUMBER);
+    const target = match ? Number(match[0].replace(/,/g, '')) : null;
+    const decimals = match && match[0].includes('.') ? 2 : 0;
+
+    return (
+        <Animated.View
+            style={{
+                opacity: settle,
+                transform: [{ scale: settle.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }],
+            }}
+        >
+            <Pressable onPress={onPress} hitSlop={4} style={({ pressed }) => [styles.tag, { backgroundColor: tone.bg }, pressed && { opacity: 0.7 }]}>
+                {target != null && match ? (
+                    <CountUp
+                        value={target}
+                        duration={700}
+                        format={(n) => item.text.replace(match[0], plain(n, decimals as 0 | 2))}
+                        style={[styles.tagText, { color: tone.fg }]}
+                    />
+                ) : (
+                    <Text style={[styles.tagText, { color: tone.fg }]}>{item.text}</Text>
+                )}
+            </Pressable>
+        </Animated.View>
+    );
+}
+
+/** One word every 110ms (about 9 a second): calm enough to read along as it writes. */
+const STREAM_WORD_MS = 110;
+const STREAM_START_MS = 400;
+
+/**
+ * The summary, streamed: one unit at a time, each word fading up as it
+ * lands, and figure tags settling in with their number counting. With Reduce
+ * Motion it is all there at once.
+ */
+function StreamedSummary({
     segments,
-    typed,
     flip,
     onTag,
 }: {
     segments: Segment[];
-    typed: number;
     flip: boolean;
     onTag: (message: string) => void;
 }) {
-    const tokens: React.ReactNode[] = [];
-    let offset = 0;
-    segments.forEach((segment, si) => {
-        const start = offset;
-        offset += segment.text.length;
-        if (typed <= start) return;
-        if (segment.kind === 'tag') {
-            const set = toneSet(segment.tone);
-            tokens.push(
-                <Pressable
-                    key={`t${si}`}
-                    onPress={() => onTag(segment.message)}
-                    accessibilityRole="button"
-                    style={({ pressed }) => [
-                        styles.tag,
-                        { backgroundColor: set.bg, borderColor: set.border },
-                        pressed && { opacity: 0.7 },
-                    ]}
-                >
-                    <Text style={[styles.tagText, styles.tabular, { color: set.fg }]}>{segment.text}</Text>
-                </Pressable>
-            );
+    const reduce = useReduceMotion();
+    const items = useMemo(() => streamItems(segments), [segments]);
+    const [shown, setShown] = useState(reduce ? items.length : 0);
+
+    useEffect(() => {
+        if (reduce) {
+            setShown(items.length);
             return;
         }
-        const visible = segment.text.slice(0, Math.max(0, typed - start));
-        // Keep punctuation glued to its word; split only on spaces.
-        visible.split(' ').forEach((word, wi, all) => {
-            if (!word) return;
-            tokens.push(
-                <Text key={`w${si}-${wi}`} style={styles.word}>
-                    {word}
-                </Text>
-            );
-            void all;
-        });
-    });
+        setShown(0);
+        let timer: ReturnType<typeof setInterval> | null = null;
+        const start = setTimeout(() => {
+            timer = setInterval(() => {
+                setShown(n => {
+                    if (n + 1 >= items.length && timer) clearInterval(timer);
+                    return Math.min(items.length, n + 1);
+                });
+            }, STREAM_WORD_MS);
+        }, STREAM_START_MS);
+        return () => {
+            clearTimeout(start);
+            if (timer) clearInterval(timer);
+        };
+    }, [items, reduce]);
+
+    // VoiceOver reads the whole sentence once, not what has streamed so far.
+    const sentence = segments.map(segment => segment.text).join('').replace(/\s+/g, ' ').trim();
 
     return (
-        <View style={[styles.summary, row(flip), flip ? { justifyContent: 'flex-start' } : null]} accessibilityRole="text">
-            {tokens}
+        <View style={[styles.summary, row(flip)]} accessible accessibilityRole="text" accessibilityLabel={sentence}>
+            {items.slice(0, shown).map((item, i) =>
+                item.kind === 'word' ? (
+                    <FadeRise key={`w${i}`} distance={3} duration={320}>
+                        <Text style={styles.word}>{item.text}</Text>
+                    </FadeRise>
+                ) : (
+                    <View key={`t${i}`} style={[styles.tagGroup, row(flip)]}>
+                        {item.prefix ? <Text style={styles.word}>{item.prefix}</Text> : null}
+                        <StreamTag item={item} onPress={() => onTag(item.message)} />
+                        {item.suffix ? <Text style={styles.word}>{item.suffix}</Text> : null}
+                    </View>
+                )
+            )}
         </View>
     );
 }
+
+/** How long the stream of these segments takes, so what follows can wait for it. */
+const streamDuration = (segments: Segment[]) => STREAM_START_MS + streamItems(segments).length * STREAM_WORD_MS;
 
 const styles = StyleSheet.create({
     content: {
@@ -458,36 +539,39 @@ const styles = StyleSheet.create({
         paddingBottom: 24,
     },
     titleRow: { alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-    title: { alignItems: 'center', gap: 6 },
+    // The title gives way (wraps) before Replay is pushed off the screen at large text sizes.
+    title: { alignItems: 'center', gap: 6, flexShrink: 1 },
     replay: { alignItems: 'center', gap: 4 },
+    tabular: { fontVariant: ['tabular-nums'] },
+    skeleton: { gap: 12, minHeight: welcome.summaryLine * 3, justifyContent: 'center' },
     summary: {
         flexWrap: 'wrap',
         alignItems: 'center',
-        columnGap: 6,
-        rowGap: 8,
+        columnGap: 5,
+        rowGap: 4,
         minHeight: welcome.summaryLine * 3,
     },
     word: {
         fontSize: welcome.summarySize,
         lineHeight: welcome.summaryLine,
-        fontWeight: '500',
+        ...face('400'),
         color: color.text.primary,
     },
+    tagGroup: { alignItems: 'center', gap: 1 },
     tag: {
-        height: welcome.summaryLine - 6,
-        paddingHorizontal: 10,
-        borderRadius: radius.pill,
-        borderWidth: 1,
+        paddingHorizontal: 6,
+        paddingVertical: 1,
+        borderRadius: radius.tag,
         alignItems: 'center',
         justifyContent: 'center',
     },
+    // A step smaller than the sentence and bold; no lineHeight, so Zain's own
+    // height centres the figure in its fill.
     tagText: {
-        fontSize: welcome.summarySize - 4,
-        lineHeight: welcome.summaryLine - 8,
-        fontWeight: '600',
+        fontSize: welcome.summarySize - 3,
+        ...face('700'),
+        fontVariant: ['tabular-nums'],
     },
-    tabular: { fontVariant: ['tabular-nums'] },
-    skeleton: { gap: 12, minHeight: welcome.summaryLine * 3, justifyContent: 'center' },
     skeletonLine: { height: welcome.summaryLine - 14, borderRadius: radius.inner, backgroundColor: color.surface3 },
     stackSection: { gap: 8 },
     stackHeader: { alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
@@ -497,7 +581,7 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         bottom: 0,
-        height: 40,
+        minHeight: 40,
         borderRadius: radius.card,
         borderWidth: 1,
         borderColor: color.border,
@@ -513,10 +597,15 @@ const styles = StyleSheet.create({
         gap: layout.sectionGap,
     },
     cardHeader: { alignItems: 'flex-start', gap: layout.rowGap },
+    // The same quiet well as every list icon (see IconBox); the card's border
+    // carries the status tone.
     cardIcon: {
         width: size.iconBox.lg + 8,
         height: size.iconBox.lg + 8,
         borderRadius: radius.inner,
+        backgroundColor: color.surface2,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: color.border,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -524,13 +613,13 @@ const styles = StyleSheet.create({
     cardActions: { alignItems: 'center', gap: 8 },
     cta: {
         flex: 1,
-        height: size.buttonPrimary,
+        minHeight: size.buttonPrimary,
         borderRadius: radius.button,
         alignItems: 'center',
         justifyContent: 'center',
     },
     nextButton: {
-        height: size.buttonPrimary,
+        minHeight: size.buttonPrimary,
         paddingHorizontal: 14,
         borderRadius: radius.button,
         alignItems: 'center',
@@ -538,7 +627,7 @@ const styles = StyleSheet.create({
     },
     pills: { gap: 8, paddingVertical: 2 },
     pill: {
-        height: size.buttonPrimary + 4,
+        minHeight: size.buttonPrimary + 4,
         paddingHorizontal: 16,
         borderRadius: radius.pill,
         borderWidth: 1,

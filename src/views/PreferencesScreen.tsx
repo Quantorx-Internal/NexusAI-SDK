@@ -30,7 +30,7 @@ import {
     assistantName,
 } from '../theme/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { useLayoutRTL, row, alignText, alignStart, alignEnd } from '../contexts/LayoutDirectionContext';
+import { useLayoutRTL, row, alignText, alignStart, alignEnd, Mirror } from '../contexts/LayoutDirectionContext';
 
 /**
  * Assistant preferences: theme and names (design §6).
@@ -62,15 +62,15 @@ const WORDS = {
         previewButton: 'Confirm',
         previewPill: 'Awaiting',
         names: 'Names',
-        nameEn: 'Assistant name · English',
-        nameAr: 'Assistant name · Arabic',
+        nameEn: 'Assistant name in English',
+        nameAr: 'Assistant name in Arabic',
         bank: 'Bank name',
         bankHelp: 'Used in greetings, disclaimers and receipts.',
         colour: 'Brand colour',
         customHex: 'Custom hex',
         ramp: { subtle: 'Subtle', border: 'Border', primary: 'Primary', pressed: 'Pressed' },
-        passes: (ratio: number) => `White text ${ratio}:1 · passes AA`,
-        fails: (ratio: number) => `White text ${ratio}:1 · below AA, pick a darker colour`,
+        passes: (ratio: number) => `White text ${ratio}:1, passes AA`,
+        fails: (ratio: number) => `White text ${ratio}:1, below AA. Pick a darker colour.`,
         invalidHex: 'Enter a 6-digit hex colour, like #4F008D',
         reset: 'Reset to AJB defaults',
         discardTitle: 'Discard changes?',
@@ -87,15 +87,15 @@ const WORDS = {
         previewButton: 'تأكيد',
         previewPill: 'بانتظار التأكيد',
         names: 'الأسماء',
-        nameEn: 'اسم المساعد · بالإنجليزية',
-        nameAr: 'اسم المساعد · بالعربية',
+        nameEn: 'اسم المساعد بالإنجليزية',
+        nameAr: 'اسم المساعد بالعربية',
         bank: 'اسم البنك',
         bankHelp: 'يظهر في التحية والتنبيهات والإيصالات.',
         colour: 'لون العلامة',
         customHex: 'لون مخصص (hex)',
         ramp: { subtle: 'فاتح', border: 'حد', primary: 'أساسي', pressed: 'مضغوط' },
-        passes: (ratio: number) => `النص الأبيض ${ratio}:1 · يجتاز AA`,
-        fails: (ratio: number) => `النص الأبيض ${ratio}:1 · أقل من AA، اختر لوناً أغمق`,
+        passes: (ratio: number) => `النص الأبيض \u2066${ratio}:1\u2069، يجتاز AA`,
+        fails: (ratio: number) => `النص الأبيض \u2066${ratio}:1\u2069، أقل من AA. اختر لوناً أغمق.`,
         invalidHex: 'أدخل لوناً من 6 خانات مثل #4F008D',
         reset: 'إعادة الضبط إلى افتراضي AJB',
         discardTitle: 'تجاهل التغييرات؟',
@@ -125,6 +125,16 @@ const inputOf = (draft: Draft): ThemeInput => ({
     color: { primary: normalizeHex(draft.hex) ?? DEFAULT_THEME.color.primary },
     names: { assistantNameEn: draft.assistantNameEn, assistantNameAr: draft.assistantNameAr, bankName: draft.bankName },
 });
+
+/** The brand presets as people name them, in the screen's language. */
+const SWATCH_NAMES: Record<string, Record<Locale, string>> = {
+    purple: { en: 'Purple', ar: 'بنفسجي' },
+    blue: { en: 'Blue', ar: 'أزرق' },
+    teal: { en: 'Teal', ar: 'فيروزي' },
+    green: { en: 'Green', ar: 'أخضر' },
+    maroon: { en: 'Maroon', ar: 'عنابي' },
+    ink: { en: 'Ink', ar: 'كحلي' },
+};
 
 export function PreferencesScreen({ locale = 'en', isRTL = false, onClose }: PreferencesScreenProps) {
     const words = WORDS[locale];
@@ -244,7 +254,7 @@ export function PreferencesScreen({ locale = 'en', isRTL = false, onClose }: Pre
                                     onPress={() => set('hex', preset.hex)}
                                     accessibilityRole="radio"
                                     accessibilityState={{ selected }}
-                                    accessibilityLabel={preset.id}
+                                    accessibilityLabel={SWATCH_NAMES[preset.id]?.[locale] ?? preset.id}
                                     style={[styles.swatchRing, selected && { borderColor: preset.hex }]}
                                 >
                                     <View style={[styles.swatch, { backgroundColor: preset.hex }]}>
@@ -300,7 +310,9 @@ export function PreferencesScreen({ locale = 'en', isRTL = false, onClose }: Pre
                     accessibilityRole="button"
                     style={({ pressed }) => [styles.reset, row(flip), pressed && styles.navButtonPressed]}
                 >
-                    <RotateCcw size={size.icon.sm} color={color.text.secondary} strokeWidth={iconStroke} />
+                    <Mirror when={I18nManager.isRTL}>
+                        <RotateCcw size={size.icon.sm} color={color.text.secondary} strokeWidth={iconStroke} />
+                    </Mirror>
                     <Text style={text('rowLabel')}>{words.reset}</Text>
                 </Pressable>
             </ScrollView>
@@ -454,7 +466,7 @@ const styles = StyleSheet.create({
     },
     navButton: {
         width: size.buttonPrimary,
-        height: size.buttonPrimary,
+        minHeight: size.buttonPrimary,
         borderRadius: radius.button,
         alignItems: 'center',
         justifyContent: 'center',
@@ -507,13 +519,13 @@ const styles = StyleSheet.create({
     previewActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     previewButton: {
         flex: 1,
-        height: size.buttonPrimary,
+        minHeight: size.buttonPrimary,
         borderRadius: radius.button,
         alignItems: 'center',
         justifyContent: 'center',
     },
     previewPill: {
-        height: size.buttonPrimary,
+        minHeight: size.buttonPrimary,
         paddingHorizontal: 14,
         borderRadius: radius.button,
         alignItems: 'center',

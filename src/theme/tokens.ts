@@ -1,4 +1,4 @@
-import { Platform, TextStyle } from 'react-native';
+import { I18nManager, Platform, TextStyle } from 'react-native';
 
 /**
  * ANB AI Assistant — in-chat card design tokens.
@@ -7,11 +7,8 @@ import { Platform, TextStyle } from 'react-native';
  * 15 in-chat cards resolves to one of these — do not introduce raw hex or ad-hoc
  * spacing in a block.
  *
- * FONT: the design specifies Cairo (Latin + Arabic, one family, weights 400–700).
- * Cairo is not bundled yet, so `font.family` is `undefined`, which renders the
- * platform system font at the design's exact sizes, weights and line heights.
- * To ship Cairo: install expo-font, load Cairo-Regular/SemiBold/Bold, and set
- * `family` below — nothing else in the system needs to change.
+ * FONT: Zain (Google Fonts) sets every word, Arabic and Latin, the same face
+ * as the web app. AiAssistantChat loads it before the first frame.
  */
 
 export const color = {
@@ -42,7 +39,8 @@ export const color = {
     text: {
         primary: '#1A1523',
         secondary: '#5B5468',
-        tertiary: '#8A8399',
+        /** 4.7:1 or more on every surface here. #8A8399 was 3.1-3.6:1, under the 4.5 floor for words. */
+        tertiary: '#6B6578',
         inverse: '#FFFFFF',
     },
     success: { bg: '#E8F7EF', border: '#B7E4C9', fg: '#0F7A45', fgStrong: '#0B5D35' },
@@ -59,24 +57,67 @@ export type Tone = 'success' | 'warning' | 'danger' | 'info' | 'brandTint' | 'ne
 
 export const toneSet = (tone: Tone) => color[tone];
 
+/**
+ * Zain ships 200, 300, 400, 700, 800 and 900, nothing between. The design's
+ * 500 reads as Regular and its 600 as Bold, the faces a browser picks for the
+ * same weights, so the phone and the web app match.
+ */
+export const fontFaces = {
+    regular: 'Zain_400Regular',
+    bold: 'Zain_700Bold',
+} as const;
+
 export const font = {
-    /** Set to 'Cairo' once the family is bundled. */
-    family: undefined as string | undefined,
+    family: fontFaces.regular as string,
+    /** Reference numbers people copy. Everything else, card numbers included, is Zain. */
     mono: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
 };
 
-/** fontSize / lineHeight / fontWeight — the only ten text roles in the system. */
+/**
+ * The face for a design weight. A loaded font is one file per weight, so the
+ * weight lives in the family name and fontWeight goes back to normal: a
+ * leftover '700' makes Android fake a bold on top of the bold file.
+ */
+export function face(weight?: TextStyle['fontWeight']): TextStyle {
+    const numeric = weight === 'bold' ? 700 : Number(weight ?? 400) || 400;
+    return {
+        fontFamily: numeric >= 600 ? fontFaces.bold : fontFaces.regular,
+        fontWeight: 'normal',
+        ...rtlBase,
+    };
+}
+
+/**
+ * Text reads right to left on a right-to-left engine, which the app runs in
+ * whenever the language is Arabic (it reloads to switch).
+ *
+ * Without it, iOS aligns text by the app's own localization, English, so a
+ * full-width Arabic line (a card's label, its total) sat on the LEFT. With an
+ * RTL writing direction, natural alignment starts at the right. Read once per
+ * load, which is enough: the engine never changes within a session.
+ */
+export const rtlBase: TextStyle = I18nManager.isRTL ? { writingDirection: 'rtl' } : {};
+
+/**
+ * fontSize / lineHeight / fontWeight — the only ten text roles in the system.
+ *
+ * Zain is tall: ascender plus descender is 1.66 em. When a line is shorter
+ * than that, iOS keeps the descender and pushes the letters up, so text in a
+ * pill or button touched the top border. Button and badge text sit inside
+ * such shapes, so they take Zain's own height (no lineHeight); the large
+ * figures get the room they need.
+ */
 export const type = {
-    hero: { fontSize: 28, lineHeight: 36, fontWeight: '700' },
-    amount: { fontSize: 20, lineHeight: 28, fontWeight: '700' },
+    hero: { fontSize: 28, lineHeight: 42, fontWeight: '700' },
+    amount: { fontSize: 20, lineHeight: 30, fontWeight: '700' },
     cardTitle: { fontSize: 16, lineHeight: 24, fontWeight: '700' },
     rowValue: { fontSize: 14, lineHeight: 22, fontWeight: '600' },
     body: { fontSize: 14, lineHeight: 22, fontWeight: '400' },
-    button: { fontSize: 14, lineHeight: 20, fontWeight: '600' },
+    button: { fontSize: 14, fontWeight: '600' },
     rowLabel: { fontSize: 13, lineHeight: 20, fontWeight: '400' },
     mono: { fontSize: 13, lineHeight: 20, fontWeight: '500' },
     caption: { fontSize: 12, lineHeight: 18, fontWeight: '400' },
-    badge: { fontSize: 11, lineHeight: 16, fontWeight: '600' },
+    badge: { fontSize: 11, fontWeight: '600' },
 } as const satisfies Record<string, Pick<TextStyle, 'fontSize' | 'lineHeight' | 'fontWeight'>>;
 
 export type TypeRole = keyof typeof type;
@@ -104,6 +145,8 @@ export const radius = {
     button: 10,
     iconSquare: 10,
     pill: 999,
+    /** Status tags and figure tags: squarer than the round action chips. */
+    tag: 6,
     avatar: 999,
     bar: 3,
 } as const;
@@ -322,17 +365,22 @@ const roleColor: Partial<Record<TypeRole, string>> = {
  * family, and the role's default colour. Pass `extra` to override.
  */
 export function text(role: TypeRole, extra?: TextStyle): TextStyle {
-    return {
+    const style: TextStyle = {
         ...type[role],
-        fontFamily: role === 'mono' ? font.mono : font.family,
         color: roleColor[role] ?? color.text.primary,
         ...extra,
     };
+    // An explicit family in `extra` (a face() spread, say) wins.
+    if (extra?.fontFamily) return { ...rtlBase, ...style };
+    if (role === 'mono') return { ...rtlBase, ...style, fontFamily: font.mono };
+    // `extra` may set its own writingDirection (an LTR account number); keep it.
+    return { ...style, ...face(style.fontWeight), ...(extra?.writingDirection ? { writingDirection: extra.writingDirection } : {}) };
 }
 
 export const tokens = {
     color,
     font,
+    face,
     type,
     space,
     layout,

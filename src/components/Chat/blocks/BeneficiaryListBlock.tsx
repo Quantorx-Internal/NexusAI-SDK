@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
     scroller: { gap: layout.scrollerGap, paddingRight: layout.scrollerPeek },
     chip: {
         width: CHIP_WIDTH,
-        height: 64,
+        minHeight: 64,
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,

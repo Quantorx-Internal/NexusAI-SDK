@@ -2,8 +2,9 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Check } from 'lucide-react-native';
 import { Card, StatusPill, IconBox, iconOn, EmptyState } from '../../ui';
-import { color, border, layout, loan, radius, size, text, iconStroke, Tone, toneSet } from '../../../theme/tokens';
+import { color, border, layout, loan, radius, size, text, iconStroke, Tone } from '../../../theme/tokens';
 import { tenureLabel } from '../../../lib/loans';
+import { isolateRanges } from '../../../lib/utils';
 import { LoanOption, LoanOptionsUI } from '../../../types';
 import { productVisual } from './productVisuals';
 import { CURRENCY_WORD, LOAN_LIST_WORDS, LoanLocale, money, plain } from './loanWords';
@@ -204,7 +205,7 @@ function Featured({ option, locale, opened, onOpen }: ItemProps) {
             <View style={[styles.featuredFooter, alignStart(flip)]}>
                 <FitWord fit={fit} label={fit === 'unknown' ? words.onRequest : words.fitLong[fit]} />
                 <Text style={[text('caption'), alignText(flip)]} numberOfLines={1}>
-                    {[option.rate[locale], option.tenure[locale]].filter(Boolean).join(' · ')}
+                    {isolateRanges([option.rate[locale], option.tenure[locale]].filter(Boolean).join(' · '))}
                 </Text>
             </View>
         </Pressable>
@@ -218,9 +219,9 @@ function Row({ option, locale, opened, onOpen, blocked = false }: ItemProps & { 
     const name = (locale === 'ar' ? product.nameAr : product.name) || product.name;
     const { Icon } = productVisual(product);
     const fit = fitOf(option);
-    const meta = blocked
+    const meta = isolateRanges(blocked
         ? option.blockers.map(b => b[locale]).join(' · ')
-        : [option.rate[locale], option.tenure[locale]].filter(Boolean).join(' · ');
+        : [option.rate[locale], option.tenure[locale]].filter(Boolean).join(' · '));
     const flip = useLayoutRTL();
 
     return (
@@ -265,17 +266,9 @@ function Row({ option, locale, opened, onOpen, blocked = false }: ItemProps & { 
 
 /** One semantic dot + word: the fit, in the StatusPill grammar without the pill. */
 function FitWord({ fit, label }: { fit: FitKey; label: string }) {
-    const flip = useLayoutRTL();
     if (!label) return null;
-    const set = toneSet(FIT_TONE[fit]);
-    return (
-        <View style={[styles.fitWord, row(flip)]}>
-            <View style={[styles.fitDot, { backgroundColor: set.fg }]} />
-            <Text style={text('badge', { color: set.fg })} numberOfLines={1}>
-                {label}
-            </Text>
-        </View>
-    );
+    // The fit is a status, so it takes the status tag (fill, no dot).
+    return <StatusPill label={label} tone={FIT_TONE[fit]} />;
 }
 
 const styles = StyleSheet.create({
@@ -323,8 +316,6 @@ const styles = StyleSheet.create({
     rowText: { flex: 1, minWidth: 0, gap: 2 },
     rowEnd: { alignItems: 'flex-end', gap: 2, flexShrink: 0 },
     divider: { height: border.hairline, backgroundColor: color.surface3 },
-    fitWord: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    fitDot: { width: 6, height: 6, borderRadius: 3 },
     tabular: { fontVariant: ['tabular-nums'] },
     disclaimer: { marginTop: layout.sectionGap },
 });
